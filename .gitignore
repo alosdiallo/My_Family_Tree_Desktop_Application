@@ -1,0 +1,17 @@
+node_modules/
+dist/
+out/
+*.pdf
+*.sqlite
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Old files from earlier versions
+App.jsx
+data-parser.js
+family-tree.ged
+family-tree.pdf
+test.pdf
