@@ -1,0 +1,127 @@
+0 HEAD
+1 SOUR FamilyTreeApp
+2 NAME Family Tree Demo
+2 VERS 2.0
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Pierre /Diallo/
+1 SEX M
+1 BIRT
+2 DATE 12 MAR 1935
+2 PLAC Dakar, Senegal
+1 DEAT
+2 DATE 8 NOV 2010
+0 @I2@ INDI
+1 NAME Aminata /Sow/
+1 SEX F
+1 BIRT
+2 DATE ABT 1938
+2 PLAC Saint-Louis, Senegal
+1 DEAT
+2 DATE 22 JUN 2018
+0 @I3@ INDI
+1 NAME Mamadou /Diallo/
+1 SEX M
+1 BIRT
+2 DATE 5 JAN 1960
+2 PLAC Dakar, Senegal
+0 @I4@ INDI
+1 NAME Fatou /Diallo/
+1 SEX F
+1 BIRT
+2 DATE 18 SEP 1963
+2 PLAC Dakar, Senegal
+0 @I5@ INDI
+1 NAME Ousmane /Diallo/
+1 SEX M
+1 BIRT
+2 DATE 3 JUL 1967
+2 PLAC Thies, Senegal
+0 @I6@ INDI
+1 NAME Margaret /O'Brien/
+1 SEX F
+1 BIRT
+2 DATE 14 FEB 1940
+2 PLAC Cork, Ireland
+0 @I7@ INDI
+1 NAME Thomas /O'Brien/
+1 SEX M
+1 BIRT
+2 DATE 9 AUG 1937
+2 PLAC Dublin, Ireland
+1 DEAT
+2 DATE 1 DEC 2005
+0 @I8@ INDI
+1 NAME Catherine /O'Brien/
+1 SEX F
+1 BIRT
+2 DATE 22 APR 1962
+2 PLAC Boston, Massachusetts
+0 @I9@ INDI
+1 NAME Seamus /O'Brien/
+1 SEX M
+1 BIRT
+2 DATE 30 OCT 1965
+2 PLAC Boston, Massachusetts
+0 @I10@ INDI
+1 NAME Ibrahima /Diallo/
+1 SEX M
+1 BIRT
+2 DATE 15 MAY 1988
+2 PLAC New York, New York
+0 @I11@ INDI
+1 NAME Aissatou /Diallo/
+1 SEX F
+1 BIRT
+2 DATE 7 DEC 1990
+2 PLAC New York, New York
+0 @I12@ INDI
+1 NAME Patrick /Diallo/
+1 SEX M
+1 BIRT
+2 DATE 23 MAR 1993
+2 PLAC Boston, Massachusetts
+0 @I13@ INDI
+1 NAME Sophie /Martin/
+1 SEX F
+1 BIRT
+2 DATE 11 JUN 1989
+2 PLAC Paris, France
+0 @I14@ INDI
+1 NAME Liam /Diallo/
+1 SEX M
+1 BIRT
+2 DATE 4 FEB 2018
+2 PLAC Brooklyn, New York
+0 @I15@ INDI
+1 NAME Nadia /Diallo/
+1 SEX F
+1 BIRT
+2 DATE 19 SEP 2021
+2 PLAC Brooklyn, New York
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+1 CHIL @I4@
+1 CHIL @I5@
+0 @F2@ FAM
+1 HUSB @I7@
+1 WIFE @I6@
+1 CHIL @I8@
+1 CHIL @I9@
+0 @F3@ FAM
+1 HUSB @I3@
+1 WIFE @I8@
+1 CHIL @I10@
+1 CHIL @I11@
+1 CHIL @I12@
+0 @F4@ FAM
+1 HUSB @I10@
+1 WIFE @I13@
+1 CHIL @I14@
+1 CHIL @I15@
+0 TRLR

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;">
+  <title>Family Tree</title>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+  <!-- ═══ Home Screen (Tree Picker) ═══ -->
+  <div id="homeScreen" class="home-screen">
+    <div class="home-header">
+      <div class="home-logo-row">
+        <img src="logo.png" alt="Logo" class="home-logo" />
+        <div>
+          <h1 class="home-title">Family Tree</h1>
+          <p class="home-subtitle">Choose a family to explore, or start a new one.</p>
+        </div>
+      </div>
+    </div>
+    <div id="treeList" class="tree-grid">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- ═══ Tree View (hidden until a tree is selected) ═══ -->
+  <div id="treeScreen" class="tree-screen hidden">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button id="backToHomeBtn" class="icon-btn" title="Back to home">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <img src="logo.png" alt="Logo" class="top-logo" />
+        <span id="treeTitle" class="top-tree-name">Family Tree</span>
+      </div>
+      <div class="top-bar-right">
+        <button id="printBtn" class="header-btn">
+          <span class="material-symbols-outlined">picture_as_pdf</span> Save PDF
+        </button>
+        <button id="exportBtn" class="header-btn">
+          <span class="material-symbols-outlined">upload_file</span> Export GEDCOM
+        </button>
+        <button id="importBtn" class="header-btn primary">
+          <span class="material-symbols-outlined">download</span> Import GEDCOM
+        </button>
+      </div>
+    </header>
+
+    <!-- View Tabs -->
+    <div class="view-tabs-bar">
+      <button class="view-tab active" data-view="pedigree">Pedigree</button>
+      <button class="view-tab" data-view="descendants">Descendants</button>
+      <button class="view-tab" data-view="family-group">Family Group Sheet</button>
+      <button class="view-tab" data-view="map">Map</button>
+      <div style="flex:1"></div>
+      <div class="search-bar">
+        <span class="material-symbols-outlined" style="font-size:16px;color:var(--secondary)">search</span>
+        <input type="text" id="searchInput" placeholder="Search people..." class="search-input" />
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div id="treeContainer" class="tree-container"></div>
+    </main>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar"></aside>
+  </div>
+
+  <script src="date-parser.js"></script>
+  <script src="country-data.js"></script>
+  <script src="world-map.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
