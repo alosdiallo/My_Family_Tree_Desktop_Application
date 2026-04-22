@@ -125,6 +125,11 @@ async function initDatabase() {
   // Extended person fields
   try { db.run('ALTER TABLE people ADD COLUMN burial_location TEXT DEFAULT NULL'); } catch(e) {}
   try { db.run('ALTER TABLE people ADD COLUMN notes TEXT DEFAULT NULL'); } catch(e) {}
+  try { db.run('ALTER TABLE people ADD COLUMN occupation TEXT DEFAULT NULL'); } catch(e) {}
+  try { db.run('ALTER TABLE people ADD COLUMN religion TEXT DEFAULT NULL'); } catch(e) {}
+  try { db.run('ALTER TABLE people ADD COLUMN cause_of_death TEXT DEFAULT NULL'); } catch(e) {}
+  try { db.run('ALTER TABLE people ADD COLUMN title TEXT DEFAULT NULL'); } catch(e) {}
+  try { db.run('ALTER TABLE people ADD COLUMN suffix TEXT DEFAULT NULL'); } catch(e) {}
 
   // Extended family fields (marriage details)
   try { db.run('ALTER TABLE families ADD COLUMN marriage_date TEXT DEFAULT NULL'); } catch(e) {}
@@ -210,6 +215,16 @@ function createWindow() {
       contextIsolation: true
     }
   });
+
+  // Inject Referer and User-Agent headers for OpenStreetMap tile requests
+  // OSM requires a valid Referer for tile usage policy compliance
+  var tileFilter = { urls: ['https://*.tile.openstreetmap.org/*', 'https://*.basemaps.cartocdn.com/*'] };
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(tileFilter, function(details, callback) {
+    details.requestHeaders['Referer'] = 'https://family-tree-app.local/';
+    details.requestHeaders['User-Agent'] = 'FamilyTreeApp/2.0 (Electron; genealogy desktop app)';
+    callback({ requestHeaders: details.requestHeaders });
+  });
+
   mainWindow.loadFile('index.html');
 }
 
@@ -293,7 +308,7 @@ ipcMain.handle('add-person', function(ev, treeId, data) {
 });
 
 ipcMain.handle('update-person', function(ev, id, fields) {
-  var allowed = ['name','sex','birth_date','death_date','is_adopted','address','country','photo_path','gedcom_id','burial_location','notes'];
+  var allowed = ['name','sex','birth_date','death_date','is_adopted','address','country','photo_path','gedcom_id','burial_location','notes','occupation','religion','cause_of_death','title','suffix'];
   var sets = [];
   var vals = [];
   for (var key in fields) {
@@ -821,6 +836,70 @@ ipcMain.handle('print-to-pdf', async function() {
     margins: { marginType: 'custom', top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
   });
   fs.writeFileSync(result.filePath, pdfData);
+  return result.filePath;
+});
+
+ipcMain.handle('print-to-printer', async function() {
+  var win = BrowserWindow.getFocusedWindow();
+  if (!win) return false;
+  win.webContents.print({
+    silent: false,
+    printBackground: true,
+    landscape: true
+  });
+  return true;
+});
+
+ipcMain.handle('save-report', async function(ev, htmlContent) {
+  var win = BrowserWindow.getFocusedWindow();
+  if (!win) return null;
+
+  var result = await dialog.showSaveDialog(win, {
+    title: 'Save Family Report',
+    defaultPath: 'family-report.pdf',
+    filters: [
+      { name: 'PDF', extensions: ['pdf'] },
+      { name: 'HTML', extensions: ['html'] }
+    ]
+  });
+
+  if (result.canceled || !result.filePath) return null;
+
+  var ext = path.extname(result.filePath).toLowerCase();
+
+  if (ext === '.html') {
+    fs.writeFileSync(result.filePath, htmlContent, 'utf8');
+    return result.filePath;
+  }
+
+  // For PDF, create a hidden window, load the HTML, and print to PDF
+  var reportWin = new BrowserWindow({
+    width: 800,
+    height: 600,
+    show: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true }
+  });
+
+  // Write HTML to a temp file
+  var tempPath = path.join(userDataPath, 'temp-report.html');
+  fs.writeFileSync(tempPath, htmlContent, 'utf8');
+  await reportWin.loadFile(tempPath);
+
+  // Wait a moment for rendering
+  await new Promise(function(resolve) { setTimeout(resolve, 500); });
+
+  var pdfData = await reportWin.webContents.printToPDF({
+    landscape: false,
+    printBackground: true,
+    margins: { marginType: 'custom', top: 0.6, bottom: 0.6, left: 0.6, right: 0.6 }
+  });
+
+  fs.writeFileSync(result.filePath, pdfData);
+  reportWin.close();
+
+  // Clean up temp file
+  try { fs.unlinkSync(tempPath); } catch(e) {}
+
   return result.filePath;
 });
 

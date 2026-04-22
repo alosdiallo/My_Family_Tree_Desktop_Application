@@ -14,22 +14,85 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function fullName(person) {
+  if (!person) return '';
+  var parts = [];
+  if (person.title) parts.push(person.title);
+  parts.push(person.name || '');
+  if (person.suffix) parts.push(person.suffix);
+  return parts.join(' ').trim();
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // BOOTSTRAP
 // ═══════════════════════════════════════════════════════════════════
 
 window.addEventListener('DOMContentLoaded', () => {
   console.log('DOM loaded, initializing...');
+  initTheme();
   setupHeaderButtons();
   setupViewTabs();
   loadHomeScreen();
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// DARK MODE
+// ═══════════════════════════════════════════════════════════════════
+
+function initTheme() {
+  var saved = localStorage.getItem('family-tree-theme');
+  if (saved === 'dark') {
+    document.documentElement.classList.add('dark-mode');
+    document.documentElement.classList.remove('light-mode');
+  } else if (saved === 'light') {
+    document.documentElement.classList.add('light-mode');
+    document.documentElement.classList.remove('dark-mode');
+  }
+  // If no saved preference, system preference applies via CSS @media
+  updateThemeIcons();
+  setupThemeToggles();
+}
+
+function isDarkMode() {
+  if (document.documentElement.classList.contains('dark-mode')) return true;
+  if (document.documentElement.classList.contains('light-mode')) return false;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function toggleTheme() {
+  var currentlyDark = isDarkMode();
+  if (currentlyDark) {
+    document.documentElement.classList.remove('dark-mode');
+    document.documentElement.classList.add('light-mode');
+    localStorage.setItem('family-tree-theme', 'light');
+  } else {
+    document.documentElement.classList.add('dark-mode');
+    document.documentElement.classList.remove('light-mode');
+    localStorage.setItem('family-tree-theme', 'dark');
+  }
+  updateThemeIcons();
+}
+
+function updateThemeIcons() {
+  var dark = isDarkMode();
+  var icon = dark ? 'light_mode' : 'dark_mode';
+  document.querySelectorAll('.theme-toggle .material-symbols-outlined').forEach(function(el) {
+    el.textContent = icon;
+  });
+}
+
+function setupThemeToggles() {
+  document.querySelectorAll('.theme-toggle').forEach(function(btn) {
+    btn.addEventListener('click', toggleTheme);
+  });
+}
 
 function setupHeaderButtons() {
   const backBtn = getEl('backToHomeBtn');
   const importBtn = getEl('importBtn');
   const exportBtn = getEl('exportBtn');
   const printBtn = getEl('printBtn');
+  const reportBtn = getEl('reportBtn');
 
   if (backBtn) backBtn.addEventListener('click', () => loadHomeScreen());
 
@@ -56,6 +119,17 @@ function setupHeaderButtons() {
       const fp = await window.api.printToPdf();
       if (fp) alert('PDF saved to:\n' + fp);
     } catch (err) { console.error(err); alert('PDF failed.'); }
+  });
+
+  if (reportBtn) reportBtn.addEventListener('click', async () => {
+    if (!currentTreeId) return;
+    reportBtn.textContent = 'Generating...';
+    try {
+      var html = await generateFamilyReport();
+      var fp = await window.api.saveReport(html);
+      if (fp) alert('Report saved to:\n' + fp);
+    } catch (err) { console.error(err); alert('Report generation failed.'); }
+    reportBtn.innerHTML = '<span class="material-symbols-outlined">summarize</span> Family Report';
   });
 }
 
@@ -473,14 +547,18 @@ function getChildrenOf(person) {
       if (c && !kids.find(function(k) { return k.id === c.id; })) kids.push(c);
     });
   });
+  // Sort children by birth date
+  kids.sort(function(a, b) {
+    var da = a.birth_date || '';
+    var db = b.birth_date || '';
+    var ya = da.match(/(\d{4})/);
+    var yb = db.match(/(\d{4})/);
+    if (ya && yb) return parseInt(ya[1]) - parseInt(yb[1]);
+    if (ya) return -1;
+    if (yb) return 1;
+    return 0;
+  });
   return kids;
-}
-
-function getSiblingsOf(person) {
-  var fam = allFamilies.find(function(f) { return (f.childIds || []).indexOf(person.id) !== -1; });
-  if (!fam) return [];
-  return (fam.childIds || []).filter(function(cid) { return cid !== person.id; })
-    .map(function(cid) { return personById(cid); }).filter(Boolean);
 }
 
 function getSpousesOf(person) {
@@ -491,6 +569,25 @@ function getSpousesOf(person) {
     if (sid) { var s = personById(sid); if (s && !out.find(function(x) { return x.id === s.id; })) out.push(s); }
   });
   return out;
+}
+
+function getSiblingsOf(person) {
+  var fam = allFamilies.find(function(f) { return (f.childIds || []).indexOf(person.id) !== -1; });
+  if (!fam) return [];
+  var siblings = (fam.childIds || []).filter(function(cid) { return cid !== person.id; })
+    .map(function(cid) { return personById(cid); }).filter(Boolean);
+  // Sort by birth date
+  siblings.sort(function(a, b) {
+    var da = a.birth_date || '';
+    var db = b.birth_date || '';
+    var ya = da.match(/(\d{4})/);
+    var yb = db.match(/(\d{4})/);
+    if (ya && yb) return parseInt(ya[1]) - parseInt(yb[1]);
+    if (ya) return -1;
+    if (yb) return 1;
+    return 0;
+  });
+  return siblings;
 }
 
 function getSpouseFamilies(person) {
@@ -534,7 +631,7 @@ function personCard(person, label, borderClass) {
     + photoHtml(person)
     + '<div style="min-width:0">'
     + '<div class="person-card-label">' + label + '</div>'
-    + '<div class="person-card-name">' + esc(person.name) + '</div>'
+    + '<div class="person-card-name">' + esc(fullName(person)) + '</div>'
     + '</div></div>'
     + '<div class="person-card-meta">' + lifeSpan(person) + '</div>'
     + '<div style="margin-top:3px">' + badges(person) + '</div>'
@@ -549,7 +646,7 @@ function selectedCard(person) {
     + '</div>'
     + '<div class="person-card-header">'
     + photoHtml(person)
-    + '<div class="person-card-name" style="font-size:18px">' + esc(person.name) + '</div>'
+    + '<div class="person-card-name" style="font-size:18px">' + esc(fullName(person)) + '</div>'
     + '</div>'
     + '<div class="person-card-meta" style="color:var(--primary);font-weight:600">' + lifeSpan(person) + '</div>'
     + '<div style="margin-top:4px">' + badges(person) + '</div>'
@@ -575,7 +672,8 @@ function renderTree() {
   if (currentView === 'pedigree') renderPedigree(tc);
   else if (currentView === 'descendants') renderDescendants(tc);
   else if (currentView === 'family-group') renderFamilyGroup(tc);
-  else if (currentView === 'map') { renderMapView(tc); return; } // map handles its own click bindings
+  else if (currentView === 'map') { renderMapView(tc); return; }
+  else if (currentView === 'statistics') { renderStatistics(tc); return; }
 
   // Add print header (hidden on screen, shown when printing)
   var treeName = getEl('treeTitle') ? getEl('treeTitle').textContent : 'Family Tree';
@@ -826,8 +924,9 @@ function renderFamilyGroup(tc) {
 
 function fgRow(role, p) {
   var loc = [p.address, p.country].filter(Boolean).join(', ') || '&mdash;';
+  var occ = p.occupation ? '<div style="font-size:11px;color:var(--secondary)">' + esc(p.occupation) + '</div>' : '';
   return '<tr><td data-person-id="' + p.id + '" style="font-weight:600;color:var(--secondary);cursor:pointer">' + role + '</td>'
-    + '<td data-person-id="' + p.id + '" style="cursor:pointer"><div class="fg-name-cell">' + photoHtml(p) + '<span style="font-family:var(--font-headline);font-weight:600">' + esc(p.name) + '</span></div></td>'
+    + '<td data-person-id="' + p.id + '" style="cursor:pointer"><div class="fg-name-cell">' + photoHtml(p) + '<div><span style="font-family:var(--font-headline);font-weight:600">' + esc(fullName(p)) + '</span>' + occ + '</div></div></td>'
     + '<td>' + (p.birth_date || '&mdash;') + '</td><td>' + (p.death_date || '&mdash;') + '</td><td>' + loc + '</td></tr>';
 }
 
@@ -856,88 +955,463 @@ function renderMapView(tc) {
     return;
   }
 
-  var mapW = 960;
-  var mapH = 520;
+  // Try Leaflet (requires internet for tiles), fall back to built-in SVG
+  if (typeof L !== 'undefined') {
+    renderLeafletMap(tc, countryGroups, countries);
+  } else {
+    renderSvgMapFallback(tc, countryGroups, countries);
+  }
+}
 
-  function toX(lng) { return ((lng + 180) / 360) * mapW; }
-  function toY(lat) { return ((90 - lat) / 180) * mapH; }
+// ─── Leaflet Map (online) ────────────────────────────────────────
 
-  // Build SVG using proper world map
-  var svg = '<svg viewBox="0 0 ' + mapW + ' ' + mapH + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:960px;height:auto;border-radius:12px;overflow:hidden">';
+var leafletMap = null; // hold reference to destroy on re-render
 
-  // Use the world map generator
-  svg += generateWorldMapSVG(mapW, mapH);
+function renderLeafletMap(tc, countryGroups, countries) {
+  tc.innerHTML = '<div style="width:100%">'
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:16px">Family Map</div>'
+    + '<div class="map-container">'
+    + '<div id="leafletMapWrap" style="flex:1;min-width:0"></div>'
+    + '<div class="map-sidebar" id="mapSidebar"></div>'
+    + '</div></div>';
 
-  // Highlight countries that have family members
+  // Build legend sidebar
+  buildMapLegend(countryGroups, countries);
+
+  // Create Leaflet map container
+  var mapDiv = document.createElement('div');
+  mapDiv.id = 'leafletMap';
+  mapDiv.className = 'leaflet-map-container';
+  getEl('leafletMapWrap').appendChild(mapDiv);
+
+  // Destroy previous map instance if exists
+  if (leafletMap) {
+    leafletMap.remove();
+    leafletMap = null;
+  }
+
+  // Compute bounds from family locations
+  var bounds = [];
   countries.forEach(function(key) {
-    var group = countryGroups[key];
-    var cx = toX(group.country.lng);
-    var cy = toY(group.country.lat);
-    var count = group.people.length;
-    var radius = Math.min(10 + count * 2.5, 22);
-
-    // Pin drop shadow
-    svg += '<ellipse cx="' + cx + '" cy="' + (cy + 3) + '" rx="' + (radius * 0.8) + '" ry="' + (radius * 0.4) + '" fill="rgba(0,0,0,0.12)"/>';
-
-    // Pin body (teardrop shape)
-    var pinTop = cy - radius;
-    svg += '<path d="M' + cx + ',' + (cy + 4)
-      + ' C' + (cx - radius) + ',' + cy + ' ' + (cx - radius) + ',' + pinTop
-      + ' ' + cx + ',' + pinTop
-      + ' C' + (cx + radius) + ',' + pinTop + ' ' + (cx + radius) + ',' + cy
-      + ' ' + cx + ',' + (cy + 4) + 'Z"'
-      + ' fill="#0051d5" stroke="white" stroke-width="1.5" style="cursor:pointer" data-map-country="' + esc(key) + '"/>';
-
-    // Count in pin
-    svg += '<text x="' + cx + '" y="' + (cy - radius * 0.35) + '" text-anchor="middle" dominant-baseline="middle" '
-      + 'fill="white" font-size="' + Math.max(10, radius * 0.7) + '" font-weight="700" font-family="Inter,sans-serif" '
-      + 'style="pointer-events:none">' + count + '</text>';
-
-    // Country name below pin
-    svg += '<text x="' + cx + '" y="' + (cy + radius * 0.6 + 14) + '" text-anchor="middle" '
-      + 'fill="#191c1e" font-size="10" font-weight="600" font-family="Inter,sans-serif" '
-      + 'style="pointer-events:none">' + esc(key) + '</text>';
+    var g = countryGroups[key];
+    bounds.push([g.country.lat, g.country.lng]);
   });
 
-  svg += '</svg>';
+  // Create map
+  leafletMap = L.map('leafletMap', {
+    zoomControl: true,
+    attributionControl: true
+  });
 
-  // Legend
-  var legend = '<div class="map-legend">';
-  legend += '<div class="map-legend-title">Family Origins</div>';
+  // Add tile layer — CartoDB Voyager (free, no API key, works well with Electron)
+  // Falls back to OSM if CartoDB fails
+  var tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 12,
+    minZoom: 2
+  });
+
+  var tileErrorCount = 0;
+  tileLayer.on('tileerror', function() {
+    tileErrorCount++;
+    // If many tiles fail, we're probably offline — switch to SVG fallback
+    if (tileErrorCount > 4) {
+      if (leafletMap) {
+        leafletMap.remove();
+        leafletMap = null;
+      }
+      var tc2 = getEl('treeContainer');
+      if (tc2) renderSvgMapFallback(tc2, countryGroups, countries);
+    }
+  });
+
+  tileLayer.addTo(leafletMap);
+
+  // Fit to family locations with padding
+  if (bounds.length === 1) {
+    leafletMap.setView(bounds[0], 5);
+  } else {
+    leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 6 });
+  }
+
+  // Custom marker icon using a simple circle div
+  function createMarkerIcon(count) {
+    var size = Math.min(28 + count * 4, 48);
+    return L.divIcon({
+      className: 'leaflet-family-pin',
+      html: '<div style="'
+        + 'width:' + size + 'px;height:' + size + 'px;'
+        + 'background:#0051d5;color:white;border-radius:50%;'
+        + 'display:flex;align-items:center;justify-content:center;'
+        + 'font-family:Inter,sans-serif;font-weight:700;font-size:' + Math.max(11, size * 0.35) + 'px;'
+        + 'border:3px solid white;box-shadow:0 2px 8px rgba(0,81,213,0.35);'
+        + 'cursor:pointer'
+        + '">' + count + '</div>',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -(size / 2 + 4)]
+    });
+  }
+
+  // Add markers for each country
+  countries.forEach(function(key) {
+    var group = countryGroups[key];
+    var marker = L.marker([group.country.lat, group.country.lng], {
+      icon: createMarkerIcon(group.people.length)
+    }).addTo(leafletMap);
+
+    // Build popup content
+    var popupHtml = '<div style="min-width:180px">'
+      + '<div style="font-family:var(--font-headline);font-weight:700;font-size:15px;color:#0051d5;margin-bottom:8px">'
+      + esc(key) + '</div>';
+
+    group.people.forEach(function(p) {
+      popupHtml += '<div class="map-popup-name" data-popup-person="' + p.id + '">' + esc(fullName(p)) + '</div>'
+        + '<div class="map-popup-meta">' + lifeSpan(p) + '</div>';
+    });
+    popupHtml += '</div>';
+
+    marker.bindPopup(popupHtml, { maxWidth: 280 });
+
+    // When popup opens, bind person clicks
+    marker.on('popupopen', function() {
+      document.querySelectorAll('[data-popup-person]').forEach(function(el) {
+        el.addEventListener('click', function() {
+          selectedPersonId = parseInt(this.dataset.popupPerson);
+          currentView = 'pedigree';
+          document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+          document.querySelector('[data-view="pedigree"]').classList.add('active');
+          renderTree();
+          renderSidebar();
+        });
+      });
+    });
+
+    // Also update legend detail on click
+    marker.on('click', function() {
+      showMapCountryDetail(group);
+    });
+  });
+}
+
+// ─── SVG Map Fallback (offline) ──────────────────────────────────
+
+function renderSvgMapFallback(tc, countryGroups, countries) {
+  tc.innerHTML = '<div style="width:100%">'
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:16px">Family Map</div>'
+    + '<div class="map-offline-badge"><span class="material-symbols-outlined" style="font-size:14px">wifi_off</span> Offline mode &mdash; showing simplified map</div>'
+    + '<div class="map-container">'
+    + '<div class="map-svg-wrap" id="mapSvgWrap"></div>'
+    + '<div class="map-sidebar" id="mapSidebar"></div>'
+    + '</div></div>';
+
+  // Build legend sidebar
+  buildMapLegend(countryGroups, countries);
+
+  // Generate SVG map using built-in world-map.js
+  var svgW = 960;
+  var svgH = 480;
+  var svgContent = generateWorldMapSVG(svgW, svgH);
+
+  var wrap = getEl('mapSvgWrap');
+  wrap.innerHTML = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" '
+    + 'style="width:100%;height:auto;max-width:960px;border-radius:12px">'
+    + svgContent + '</svg>';
+
+  var svgEl = wrap.querySelector('svg');
+  if (svgEl) {
+    var familyCountryNames = {};
+    countries.forEach(function(key) { familyCountryNames[key] = true; });
+
+    // Highlight country paths
+    svgEl.querySelectorAll('path[data-country-name]').forEach(function(pathEl) {
+      var pathName = pathEl.getAttribute('data-country-name');
+      if (familyCountryNames[pathName]) {
+        pathEl.style.fill = '#93b4f5';
+        pathEl.style.stroke = '#0051d5';
+        pathEl.style.strokeWidth = '1';
+        pathEl.style.cursor = 'pointer';
+        pathEl.style.transition = 'fill 0.2s';
+        pathEl.dataset.mapCountry = pathName;
+      }
+    });
+
+    // Pin projection matching world-map.js equirectangular
+    function pinX(lng) { return ((lng + 180) / 360) * svgW; }
+    function pinY(lat) { return ((90 - lat) / 180) * svgH; }
+
+    var pinGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    pinGroup.setAttribute('class', 'pin-overlay');
+
+    countries.forEach(function(key) {
+      var group = countryGroups[key];
+      var cx = pinX(group.country.lng);
+      var cy = pinY(group.country.lat);
+      var count = group.people.length;
+      var r = Math.min(8 + count * 2, 18);
+
+      var shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      shadow.setAttribute('cx', cx);
+      shadow.setAttribute('cy', cy + 2);
+      shadow.setAttribute('r', r);
+      shadow.setAttribute('fill', 'rgba(0,0,0,0.15)');
+      pinGroup.appendChild(shadow);
+
+      var pin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      pin.setAttribute('cx', cx);
+      pin.setAttribute('cy', cy);
+      pin.setAttribute('r', r);
+      pin.setAttribute('fill', '#0051d5');
+      pin.setAttribute('stroke', 'white');
+      pin.setAttribute('stroke-width', '2');
+      pin.style.cursor = 'pointer';
+      pin.dataset.mapCountry = key;
+      pinGroup.appendChild(pin);
+
+      var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy + 1);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'middle');
+      text.setAttribute('fill', 'white');
+      text.setAttribute('font-size', Math.max(8, r * 0.7));
+      text.setAttribute('font-weight', '700');
+      text.setAttribute('font-family', 'Inter, sans-serif');
+      text.style.pointerEvents = 'none';
+      text.textContent = count;
+      pinGroup.appendChild(text);
+
+      var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', cx);
+      label.setAttribute('y', cy + r + 10);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('fill', '#191c1e');
+      label.setAttribute('font-size', '8');
+      label.setAttribute('font-weight', '600');
+      label.setAttribute('font-family', 'Inter, sans-serif');
+      label.style.pointerEvents = 'none';
+      label.textContent = key;
+      pinGroup.appendChild(label);
+    });
+
+    svgEl.appendChild(pinGroup);
+
+    svgEl.querySelectorAll('[data-map-country]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var name = this.dataset.mapCountry;
+        if (countryGroups[name]) showMapCountryDetail(countryGroups[name]);
+      });
+    });
+  }
+}
+
+// ─── Shared Map Helpers ──────────────────────────────────────────
+
+function buildMapLegend(countryGroups, countries) {
+  var legendHtml = '<div class="map-legend">';
+  legendHtml += '<div class="map-legend-title">Family Origins</div>';
   countries.sort(function(a, b) { return countryGroups[b].people.length - countryGroups[a].people.length; });
   countries.forEach(function(key) {
     var group = countryGroups[key];
-    legend += '<div class="map-legend-item" data-map-legend="' + esc(key) + '">'
+    legendHtml += '<div class="map-legend-item" data-map-legend="' + esc(key) + '">'
       + '<div class="map-legend-dot"></div>'
       + '<div class="map-legend-text">'
       + '<div class="map-legend-country">' + esc(key) + '</div>'
       + '<div class="map-legend-count">' + group.people.length + ' ' + (group.people.length === 1 ? 'person' : 'people') + '</div>'
       + '</div></div>';
   });
-  legend += '</div>';
+  legendHtml += '</div><div id="mapDetail" class="map-detail"></div>';
+  getEl('mapSidebar').innerHTML = legendHtml;
 
-  var detail = '<div id="mapDetail" class="map-detail"></div>';
-
-  tc.innerHTML = '<div style="width:100%">'
-    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:16px">Family Map</div>'
-    + '<div class="map-container">'
-    + '<div class="map-svg-wrap">' + svg + '</div>'
-    + '<div class="map-sidebar">' + legend + detail + '</div>'
-    + '</div></div>';
-
-  // Bind pin clicks
-  tc.querySelectorAll('[data-map-country]').forEach(function(el) {
-    el.addEventListener('click', function() {
-      showMapCountryDetail(countryGroups[this.dataset.mapCountry]);
-    });
-  });
-
-  // Bind legend clicks
-  tc.querySelectorAll('[data-map-legend]').forEach(function(el) {
+  document.querySelectorAll('[data-map-legend]').forEach(function(el) {
     el.addEventListener('click', function() {
       showMapCountryDetail(countryGroups[this.dataset.mapLegend]);
     });
   });
+}
+
+// ─── Statistics Dashboard ─────────────────────────────────────────
+
+function renderStatistics(tc) {
+  if (allPeople.length === 0) {
+    tc.innerHTML = '<div class="empty-state">'
+      + '<span class="material-symbols-outlined">bar_chart</span>'
+      + '<div class="title">No data yet</div>'
+      + '<p>Add people to your tree to see statistics.</p>'
+      + '</div>';
+    return;
+  }
+
+  // Compute statistics
+  var totalPeople = allPeople.length;
+  var males = allPeople.filter(function(p) { return p.sex === 'M'; }).length;
+  var females = allPeople.filter(function(p) { return p.sex === 'F'; }).length;
+  var unknownSex = totalPeople - males - females;
+  var deceased = allPeople.filter(function(p) { return p.death_date; }).length;
+  var living = totalPeople - deceased;
+  var adopted = allPeople.filter(function(p) { return p.is_adopted; }).length;
+  var withPhotos = allPeople.filter(function(p) { return p.photo_path; }).length;
+  var totalFamilies = allFamilies.length;
+
+  // Birth year extraction
+  var birthYears = [];
+  allPeople.forEach(function(p) {
+    if (p.birth_date) {
+      var m = p.birth_date.match(/(\d{4})/);
+      if (m) birthYears.push(parseInt(m[1]));
+    }
+  });
+  birthYears.sort(function(a, b) { return a - b; });
+  var earliestYear = birthYears.length > 0 ? birthYears[0] : null;
+  var latestYear = birthYears.length > 0 ? birthYears[birthYears.length - 1] : null;
+  var yearSpan = (earliestYear && latestYear) ? (latestYear - earliestYear) : 0;
+
+  // Estimate generations (rough: ~25-30 years per generation)
+  var estGenerations = yearSpan > 0 ? Math.ceil(yearSpan / 28) : 1;
+
+  // Surname analysis
+  var surnames = {};
+  allPeople.forEach(function(p) {
+    var parts = (p.name || '').trim().split(/\s+/);
+    if (parts.length > 1) {
+      var surname = parts[parts.length - 1];
+      surnames[surname] = (surnames[surname] || 0) + 1;
+    }
+  });
+  var surnameList = Object.keys(surnames).sort(function(a, b) { return surnames[b] - surnames[a]; });
+
+  // Country analysis
+  var countryCount = {};
+  allPeople.forEach(function(p) {
+    var resolved = resolveCountry(p.country) || resolveCountry(p.address);
+    if (resolved) countryCount[resolved.name] = (countryCount[resolved.name] || 0) + 1;
+  });
+  var countryList = Object.keys(countryCount).sort(function(a, b) { return countryCount[b] - countryCount[a]; });
+
+  // Average children per family
+  var familiesWithKids = allFamilies.filter(function(f) { return (f.childIds || []).length > 0; });
+  var totalChildren = 0;
+  familiesWithKids.forEach(function(f) { totalChildren += (f.childIds || []).length; });
+  var avgChildren = familiesWithKids.length > 0 ? (totalChildren / familiesWithKids.length).toFixed(1) : '0';
+
+  // Birth decade histogram
+  var decades = {};
+  birthYears.forEach(function(y) {
+    var dec = Math.floor(y / 10) * 10;
+    decades[dec] = (decades[dec] || 0) + 1;
+  });
+  var decadeKeys = Object.keys(decades).sort();
+  var maxDecadeCount = 0;
+  decadeKeys.forEach(function(d) { if (decades[d] > maxDecadeCount) maxDecadeCount = decades[d]; });
+
+  // Occupation analysis
+  var occupations = {};
+  allPeople.forEach(function(p) {
+    if (p.occupation) {
+      var occ = p.occupation.trim();
+      occupations[occ] = (occupations[occ] || 0) + 1;
+    }
+  });
+  var occList = Object.keys(occupations).sort(function(a, b) { return occupations[b] - occupations[a]; });
+
+  // Build HTML
+  var h = '<div style="width:100%;max-width:960px">';
+  h += '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:20px">Statistics Dashboard</div>';
+
+  // Summary cards
+  h += '<div class="stats-grid">';
+  h += statCard('group', 'blue', totalPeople, 'Total People');
+  h += statCard('family_restroom', 'purple', totalFamilies, 'Families');
+  h += statCard('favorite', 'rose', living, 'Living');
+  h += statCard('schedule', 'amber', (earliestYear && latestYear) ? earliestYear + ' – ' + latestYear : '—', 'Year Range');
+  h += statCard('stacks', 'teal', estGenerations, 'Est. Generations');
+  h += statCard('child_care', 'green', avgChildren, 'Avg Children / Family');
+  h += '</div>';
+
+  // Gender breakdown
+  h += '<div class="stats-section">';
+  h += '<div class="stats-section-title"><span class="material-symbols-outlined">wc</span> Gender</div>';
+  if (males > 0) h += statsBar('Male', males, totalPeople, '');
+  if (females > 0) h += statsBar('Female', females, totalPeople, 'purple');
+  if (unknownSex > 0) h += statsBar('Unknown', unknownSex, totalPeople, 'amber');
+  h += '</div>';
+
+  // Living vs Deceased
+  h += '<div class="stats-section">';
+  h += '<div class="stats-section-title"><span class="material-symbols-outlined">monitoring</span> Status</div>';
+  h += statsBar('Living', living, totalPeople, 'green');
+  h += statsBar('Deceased', deceased, totalPeople, 'rose');
+  if (adopted > 0) h += statsBar('Adopted', adopted, totalPeople, 'amber');
+  if (withPhotos > 0) h += statsBar('With Photos', withPhotos, totalPeople, 'teal');
+  h += '</div>';
+
+  // Surnames
+  if (surnameList.length > 0) {
+    h += '<div class="stats-section">';
+    h += '<div class="stats-section-title"><span class="material-symbols-outlined">badge</span> Surnames</div>';
+    surnameList.slice(0, 10).forEach(function(name) {
+      h += statsBar(name, surnames[name], totalPeople, 'purple');
+    });
+    h += '</div>';
+  }
+
+  // Countries
+  if (countryList.length > 0) {
+    h += '<div class="stats-section">';
+    h += '<div class="stats-section-title"><span class="material-symbols-outlined">public</span> Countries</div>';
+    countryList.slice(0, 10).forEach(function(name) {
+      h += statsBar(name, countryCount[name], totalPeople, 'teal');
+    });
+    h += '</div>';
+  }
+
+  // Occupations
+  if (occList.length > 0) {
+    h += '<div class="stats-section">';
+    h += '<div class="stats-section-title"><span class="material-symbols-outlined">work</span> Occupations</div>';
+    occList.slice(0, 10).forEach(function(name) {
+      h += statsBar(name, occupations[name], totalPeople, 'amber');
+    });
+    h += '</div>';
+  }
+
+  // Birth decade timeline
+  if (decadeKeys.length > 0) {
+    h += '<div class="stats-section">';
+    h += '<div class="stats-section-title"><span class="material-symbols-outlined">timeline</span> Births by Decade</div>';
+    h += '<div class="stats-timeline">';
+    decadeKeys.forEach(function(dec) {
+      var pct = maxDecadeCount > 0 ? (decades[dec] / maxDecadeCount * 100) : 0;
+      h += '<div class="stats-timeline-bar" style="height:' + Math.max(pct, 5) + '%" title="' + dec + 's: ' + decades[dec] + ' born"></div>';
+    });
+    h += '</div>';
+    h += '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--secondary);margin-top:4px;padding:0 4px">';
+    h += '<span>' + decadeKeys[0] + 's</span>';
+    h += '<span>' + decadeKeys[decadeKeys.length - 1] + 's</span>';
+    h += '</div>';
+    h += '</div>';
+  }
+
+  h += '</div>';
+  tc.innerHTML = h;
+}
+
+function statCard(icon, colorClass, value, label) {
+  return '<div class="stat-card">'
+    + '<div class="stat-card-icon ' + colorClass + '"><span class="material-symbols-outlined">' + icon + '</span></div>'
+    + '<div class="stat-card-value">' + value + '</div>'
+    + '<div class="stat-card-label">' + label + '</div>'
+    + '</div>';
+}
+
+function statsBar(label, count, total, colorClass) {
+  var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return '<div class="stats-bar-row">'
+    + '<div class="stats-bar-label">' + esc(label) + '</div>'
+    + '<div class="stats-bar-track"><div class="stats-bar-fill ' + colorClass + '" style="width:' + pct + '%"></div></div>'
+    + '<div class="stats-bar-count">' + count + '</div>'
+    + '</div>';
 }
 
 function showMapCountryDetail(group) {
@@ -1019,12 +1493,15 @@ function renderSidebar() {
   });
 
   sb.innerHTML = sidebarPhoto
-    + '<div class="sidebar-name">' + esc(person.name) + '</div>'
+    + '<div class="sidebar-name">' + esc(fullName(person)) + '</div>'
     + '<div class="sidebar-subtitle">Manage individual records</div>'
     + metaField('Sex', person.sex || '—')
     + metaField('Birth Date', person.birth_date || '—')
     + (person.death_date ? metaField('Death Date', person.death_date) : '')
+    + (person.cause_of_death ? metaField('Cause of Death', person.cause_of_death) : '')
     + (person.is_adopted ? metaField('Status', 'Adopted') : '')
+    + (person.occupation ? metaField('Occupation', person.occupation) : '')
+    + (person.religion ? metaField('Religion', person.religion) : '')
     + (person.address ? metaField('Address', person.address) : '')
     + (person.country ? metaField('Country', person.country) : '')
     + (person.burial_location ? metaField('Burial Location', person.burial_location) : '')
@@ -1034,6 +1511,7 @@ function renderSidebar() {
     + (siblings.length ? metaField('Siblings', siblings.map(function(s) { return esc(s.name); }).join(', ')) : '')
     + '<div style="margin-top:auto;padding-top:16px">'
     + '<button class="sidebar-btn ghost" id="photoBtn"><span class="material-symbols-outlined">add_a_photo</span> ' + (person.photo_path ? 'Change Photo' : 'Add Photo') + '</button>'
+    + (person.photo_path ? '<button class="sidebar-btn ghost" id="removePhotoBtn" style="color:var(--danger)"><span class="material-symbols-outlined">no_photography</span> Remove Photo</button>' : '')
     + '<button class="sidebar-btn primary" id="addRelativeBtn"><span class="material-symbols-outlined">add_circle</span> Add Relative</button>'
     + '<button class="sidebar-btn secondary" id="editProfileBtn"><span class="material-symbols-outlined">edit</span> Edit Profile</button>'
     + '<button class="sidebar-btn danger" id="deletePersonBtn"><span class="material-symbols-outlined">delete</span> Delete Person</button>'
@@ -1045,6 +1523,15 @@ function renderSidebar() {
     var p = await window.api.pickPhoto(person.id);
     if (p) await refreshData();
   });
+  var removePhotoBtn = getEl('removePhotoBtn');
+  if (removePhotoBtn) {
+    removePhotoBtn.addEventListener('click', async function() {
+      if (confirm('Remove the photo for ' + person.name + '?')) {
+        await window.api.updatePerson(person.id, { photoPath: null });
+        await refreshData();
+      }
+    });
+  }
   getEl('addRelativeBtn').addEventListener('click', function() { showAddRelativeForm(person); });
   getEl('editProfileBtn').addEventListener('click', function() { showEditForm(person); });
   getEl('deletePersonBtn').addEventListener('click', function() { deletePerson(person); });
@@ -1175,15 +1662,20 @@ function showEditForm(person) {
   var sb = getEl('sidebar');
   sb.innerHTML = '<button class="back-link" id="backBtn"><span class="material-symbols-outlined" style="font-size:16px">arrow_back</span> Back</button>'
     + '<div class="sidebar-name" style="font-size:18px">Edit Profile</div>'
+    + '<div class="form-group"><label class="form-label">Title (e.g. Dr., Rev., Deacon)</label><input id="editTitle" class="form-input" value="' + esc(person.title || '') + '" placeholder="e.g. Dr., Esquire, Deacon"/></div>'
     + '<div class="form-group"><label class="form-label">Full Name</label><input id="editName" class="form-input" value="' + esc(person.name || '') + '"/></div>'
+    + '<div class="form-group"><label class="form-label">Suffix (e.g. Jr., Sr., III)</label><input id="editSuffix" class="form-input" value="' + esc(person.suffix || '') + '" placeholder="e.g. Jr., Sr., III, Esq."/></div>'
     + '<div class="form-group"><label class="form-label">Sex</label><select id="editSex" class="form-select"><option value="F"' + (person.sex === 'F' ? ' selected' : '') + '>Female</option><option value="M"' + (person.sex === 'M' ? ' selected' : '') + '>Male</option><option value=""' + (!person.sex ? ' selected' : '') + '>Unknown</option></select></div>'
     + '<div class="form-group"><label class="form-label">Birth Date</label><input id="editBirth" class="form-input" value="' + esc(person.birth_date || '') + '" placeholder="e.g. jan 5 1892, about 1670, between 1860 and 1870"/><div class="date-hint" id="birthHint"></div></div>'
     + '<div class="form-group"><label class="form-label">Death Date</label><input id="editDeath" class="form-input" value="' + esc(person.death_date || '') + '" placeholder="Leave blank if living"/><div class="date-hint" id="deathHint"></div></div>'
+    + '<div class="form-group"><label class="form-label">Cause of Death</label><input id="editCauseOfDeath" class="form-input" value="' + esc(person.cause_of_death || '') + '" placeholder="e.g. Heart failure"/></div>'
     + '<div class="form-group"><label class="form-label">Burial Location</label><input id="editBurial" class="form-input" value="' + esc(person.burial_location || '') + '" placeholder="e.g. Greenwood Cemetery, Brooklyn, NY"/></div>'
     + '<label class="form-checkbox-row"><input type="checkbox" id="editAdopted" class="form-checkbox"' + (person.is_adopted ? ' checked' : '') + '/> <span class="form-label" style="margin:0">Adopted</span></label>'
+    + '<div class="form-group"><label class="form-label">Occupation</label><input id="editOccupation" class="form-input" value="' + esc(person.occupation || '') + '" placeholder="e.g. Teacher, Farmer, Attorney"/></div>'
+    + '<div class="form-group"><label class="form-label">Religion</label><input id="editReligion" class="form-input" value="' + esc(person.religion || '') + '" placeholder="e.g. Catholic, Muslim, Baptist"/></div>'
     + '<div class="form-group"><label class="form-label">Address</label><input id="editAddress" class="form-input" value="' + esc(person.address || '') + '" placeholder="e.g. 123 Main St"/></div>'
     + '<div class="form-group"><label class="form-label">Country</label><input id="editCountry" class="form-input" value="' + esc(person.country || '') + '" placeholder="e.g. United States"/></div>'
-    + '<div class="form-group"><label class="form-label">Notes</label><textarea id="editNotes" class="form-input" style="min-height:80px;resize:vertical" placeholder="Family stories, memories, context...">' + esc(person.notes || '') + '</textarea></div>'
+    + '<div class="form-group"><label class="form-label">Notes <button type="button" id="expandNotesBtn" style="float:right;background:none;border:none;color:var(--primary);font-size:11px;font-weight:700;cursor:pointer">Expand</button></label><textarea id="editNotes" class="form-input" style="min-height:80px;resize:vertical" placeholder="Family stories, memories, context...">' + esc(person.notes || '') + '</textarea></div>'
     + '<button class="sidebar-btn primary" id="saveEditBtn"><span class="material-symbols-outlined">save</span> Save Changes</button>'
     + '<div style="margin-top:20px;border-top:1px solid var(--outline);padding-top:16px">'
     + '<div id="eventsSection"></div>'
@@ -1196,6 +1688,13 @@ function showEditForm(person) {
   setupDateHint('editBirth', 'birthHint');
   setupDateHint('editDeath', 'deathHint');
 
+  var expandNotesBtn = getEl('expandNotesBtn');
+  if (expandNotesBtn) {
+    expandNotesBtn.addEventListener('click', function() {
+      showExpandedNotes(person, getEl('editNotes'));
+    });
+  }
+
   getEl('backBtn').addEventListener('click', function() { renderSidebar(); });
   getEl('saveEditBtn').addEventListener('click', async function() {
     var name = getEl('editName').value.trim();
@@ -1205,12 +1704,17 @@ function showEditForm(person) {
     var deathParsed = parseGenealogyDate(getEl('editDeath').value.trim());
 
     var updateData = {
+      title: getEl('editTitle').value.trim() || null,
       name: name,
+      suffix: getEl('editSuffix').value.trim() || null,
       sex: getEl('editSex').value,
       birthDate: birthParsed.normalized || null,
       deathDate: deathParsed.normalized || null,
+      causeOfDeath: getEl('editCauseOfDeath').value.trim() || null,
       burialLocation: getEl('editBurial').value.trim() || null,
       isAdopted: getEl('editAdopted').checked,
+      occupation: getEl('editOccupation').value.trim() || null,
+      religion: getEl('editReligion').value.trim() || null,
       address: getEl('editAddress').value.trim() || null,
       country: getEl('editCountry').value.trim() || null,
       notes: getEl('editNotes').value.trim() || null
@@ -1258,10 +1762,10 @@ function setupDateHint(inputId, hintId) {
 
 var EVENT_TYPES = [
   'birth', 'death', 'marriage', 'burial',
-  'immigration', 'naturalization', 'military service',
-  'residence', 'education', 'occupation',
-  'court case', 'office holding', 'religious event',
-  'other'
+  'residence', 'immigration', 'naturalization',
+  'military service', 'education', 'occupation',
+  'elected office', 'court case', 'religious event',
+  'medical', 'travel', 'achievement', 'other'
 ];
 
 async function loadEventsSection(person) {
@@ -1323,8 +1827,8 @@ function showAddEventForm(person) {
   container.innerHTML = '<div class="meta-label" style="margin-bottom:8px">Add Life Event</div>'
     + '<div class="form-group"><label class="form-label">Type</label><select id="eventType" class="form-select">' + typeOptions + '</select></div>'
     + '<div class="form-group"><label class="form-label">Date</label><input id="eventDate" class="form-input" placeholder="e.g. june 1945, about 1920"/><div class="date-hint" id="eventDateHint"></div></div>'
-    + '<div class="form-group"><label class="form-label">Place</label><input id="eventPlace" class="form-input" placeholder="e.g. Ellis Island, New York"/></div>'
-    + '<div class="form-group"><label class="form-label">Description</label><textarea id="eventDesc" class="form-input" style="min-height:50px;resize:vertical" placeholder="Details about this event..."></textarea></div>'
+    + '<div class="form-group"><label class="form-label">Place / Location</label><input id="eventPlace" class="form-input" placeholder="e.g. Ellis Island, New York"/></div>'
+    + '<div class="form-group"><label class="form-label">Details</label><textarea id="eventDesc" class="form-input" style="min-height:50px;resize:vertical" placeholder="Details — e.g. branch of service, degree, office held..."></textarea></div>'
     + '<div style="display:flex;gap:6px">'
     + '<button class="sidebar-btn ghost" style="flex:1" id="cancelEventBtn">Cancel</button>'
     + '<button class="sidebar-btn primary" style="flex:1" id="saveEventBtn"><span class="material-symbols-outlined" style="font-size:14px">save</span> Save</button>'
@@ -1697,6 +2201,210 @@ function describeRelationship(genA, genB, sex) {
     result += ' ' + removed + ' time' + (removed > 1 ? 's' : '') + ' removed';
   }
   return result;
+}
+
+// ─── Expanded Notes Modal ─────────────────────────────────────────
+
+function showExpandedNotes(person, textareaEl) {
+  var old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.width = '600px';
+  modal.style.maxHeight = '80vh';
+  modal.style.display = 'flex';
+  modal.style.flexDirection = 'column';
+
+  var title = document.createElement('div');
+  title.className = 'modal-title';
+  title.textContent = 'Notes — ' + fullName(person);
+  modal.appendChild(title);
+
+  var textarea = document.createElement('textarea');
+  textarea.className = 'form-input';
+  textarea.style.flex = '1';
+  textarea.style.minHeight = '300px';
+  textarea.style.resize = 'vertical';
+  textarea.style.fontFamily = 'var(--font-body)';
+  textarea.style.fontSize = '14px';
+  textarea.style.lineHeight = '1.6';
+  textarea.placeholder = 'Write notes, family stories, memories, research findings...\n\nYou can use multiple lines and paragraphs.';
+  textarea.value = textareaEl ? textareaEl.value : (person.notes || '');
+  modal.appendChild(textarea);
+
+  var actions = document.createElement('div');
+  actions.className = 'modal-actions';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'modal-btn cancel';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.type = 'button';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'modal-btn confirm';
+  saveBtn.textContent = 'Save Notes';
+  saveBtn.type = 'button';
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  modal.appendChild(actions);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  textarea.focus();
+
+  cancelBtn.addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  saveBtn.addEventListener('click', function() {
+    var val = textarea.value;
+    if (textareaEl) textareaEl.value = val;
+    overlay.remove();
+  });
+}
+
+// ─── Family Report Generator ─────────────────────────────────────
+
+async function generateFamilyReport() {
+  var treeName = getEl('treeTitle') ? getEl('treeTitle').textContent : 'Family Tree';
+  var today = new Date().toLocaleDateString();
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+    + '<style>'
+    + 'body { font-family: Georgia, "Times New Roman", serif; color: #1a1a1a; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.5; }'
+    + 'h1 { font-size: 28px; text-align: center; margin-bottom: 4px; }'
+    + '.subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 30px; }'
+    + '.person-section { page-break-inside: avoid; margin-bottom: 28px; border-bottom: 1px solid #ddd; padding-bottom: 20px; }'
+    + '.person-name { font-size: 20px; font-weight: bold; margin-bottom: 4px; }'
+    + '.person-dates { font-size: 14px; color: #555; margin-bottom: 10px; }'
+    + '.detail-grid { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; font-size: 13px; margin-bottom: 10px; }'
+    + '.detail-label { font-weight: bold; color: #555; }'
+    + '.detail-value { color: #1a1a1a; }'
+    + '.section-header { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-top: 12px; margin-bottom: 4px; }'
+    + '.family-block { background: #f8f8f8; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }'
+    + '.events-list { font-size: 13px; }'
+    + '.event-row { margin-bottom: 4px; }'
+    + '.event-type { font-weight: bold; text-transform: capitalize; }'
+    + '.notes-block { font-size: 13px; white-space: pre-wrap; background: #fafafa; padding: 10px 14px; border-radius: 6px; border-left: 3px solid #ccc; }'
+    + '.toc { margin-bottom: 30px; }'
+    + '.toc-item { font-size: 13px; margin-bottom: 2px; }'
+    + '.toc-item a { color: #0051d5; text-decoration: none; }'
+    + '@media print { .person-section { page-break-inside: avoid; } }'
+    + '</style></head><body>';
+
+  html += '<h1>' + esc(treeName) + '</h1>';
+  html += '<div class="subtitle">Family Report — Generated ' + today + '</div>';
+
+  // Table of contents
+  html += '<div class="toc"><div class="section-header">Index of People</div>';
+  allPeople.forEach(function(p, i) {
+    html += '<div class="toc-item">' + (i + 1) + '. ' + esc(fullName(p));
+    var dates = [];
+    if (p.birth_date) dates.push('b. ' + p.birth_date);
+    if (p.death_date) dates.push('d. ' + p.death_date);
+    if (dates.length) html += ' <span style="color:#888">(' + dates.join(', ') + ')</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Each person
+  for (var pi = 0; pi < allPeople.length; pi++) {
+    var p = allPeople[pi];
+    var parents = getParentsOf(p);
+    var spouses = getSpousesOf(p);
+    var children = getChildrenOf(p);
+    var siblings = getSiblingsOf(p);
+    var spFams = getSpouseFamilies(p);
+
+    html += '<div class="person-section">';
+    html += '<div class="person-name">' + (pi + 1) + '. ' + esc(fullName(p)) + '</div>';
+
+    var dateStr = [];
+    if (p.birth_date) dateStr.push('Born: ' + parseGenealogyDate(p.birth_date).display);
+    if (p.death_date) dateStr.push('Died: ' + parseGenealogyDate(p.death_date).display);
+    if (dateStr.length) html += '<div class="person-dates">' + dateStr.join(' — ') + '</div>';
+
+    html += '<div class="detail-grid">';
+    if (p.sex) html += '<div class="detail-label">Sex</div><div class="detail-value">' + (p.sex === 'M' ? 'Male' : p.sex === 'F' ? 'Female' : p.sex) + '</div>';
+    if (p.occupation) html += '<div class="detail-label">Occupation</div><div class="detail-value">' + esc(p.occupation) + '</div>';
+    if (p.religion) html += '<div class="detail-label">Religion</div><div class="detail-value">' + esc(p.religion) + '</div>';
+    if (p.address) html += '<div class="detail-label">Address</div><div class="detail-value">' + esc(p.address) + '</div>';
+    if (p.country) html += '<div class="detail-label">Country</div><div class="detail-value">' + esc(p.country) + '</div>';
+    if (p.burial_location) html += '<div class="detail-label">Burial</div><div class="detail-value">' + esc(p.burial_location) + '</div>';
+    if (p.cause_of_death) html += '<div class="detail-label">Cause of Death</div><div class="detail-value">' + esc(p.cause_of_death) + '</div>';
+    if (p.is_adopted) html += '<div class="detail-label">Status</div><div class="detail-value">Adopted</div>';
+    html += '</div>';
+
+    // Family connections
+    if (parents.length) {
+      html += '<div class="section-header">Parents</div>';
+      html += '<div class="family-block">' + parents.map(function(pa) { return esc(fullName(pa)); }).join(', ') + '</div>';
+    }
+
+    if (spouses.length) {
+      spouses.forEach(function(sp) {
+        var fam = spFams.find(function(f) { return f.husband_id === sp.id || f.wife_id === sp.id; });
+        var status = fam && fam.status === 'divorced' ? ' (Divorced)' : '';
+        var mDate = fam && fam.marriage_date ? ' — Married ' + parseGenealogyDate(fam.marriage_date).display : '';
+        var mPlace = fam && fam.marriage_place ? ' at ' + fam.marriage_place : '';
+        html += '<div class="section-header">Spouse</div>';
+        html += '<div class="family-block">' + esc(fullName(sp)) + status + mDate + mPlace + '</div>';
+      });
+    }
+
+    if (children.length) {
+      html += '<div class="section-header">Children</div>';
+      html += '<div class="family-block">';
+      children.forEach(function(c, ci) {
+        var cDates = [];
+        if (c.birth_date) cDates.push('b. ' + c.birth_date);
+        if (c.death_date) cDates.push('d. ' + c.death_date);
+        html += (ci + 1) + '. ' + esc(fullName(c));
+        if (c.is_adopted) html += ' (adopted)';
+        if (cDates.length) html += ' <span style="color:#888">(' + cDates.join(', ') + ')</span>';
+        html += '<br>';
+      });
+      html += '</div>';
+    }
+
+    if (siblings.length) {
+      html += '<div class="section-header">Siblings</div>';
+      html += '<div class="family-block">' + siblings.map(function(s) { return esc(fullName(s)); }).join(', ') + '</div>';
+    }
+
+    // Events
+    var events = [];
+    try { events = await window.api.getEvents(p.id); } catch(e) {}
+    if (events.length) {
+      html += '<div class="section-header">Life Events</div>';
+      html += '<div class="events-list">';
+      events.forEach(function(ev) {
+        var evDate = ev.event_date ? parseGenealogyDate(ev.event_date).display : '';
+        html += '<div class="event-row"><span class="event-type">' + esc(ev.event_type) + '</span>';
+        if (evDate) html += ' — ' + esc(evDate);
+        if (ev.event_place) html += ', ' + esc(ev.event_place);
+        if (ev.description) html += ': ' + esc(ev.description);
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Notes
+    if (p.notes) {
+      html += '<div class="section-header">Notes</div>';
+      html += '<div class="notes-block">' + esc(p.notes) + '</div>';
+    }
+
+    html += '</div>';
+  }
+
+  html += '</body></html>';
+  return html;
 }
 
 // ─── Trash View (deleted people) ─────────────────────────────────

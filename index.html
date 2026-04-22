@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; script-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: file: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com;">
   <title>Family Tree</title>
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -16,12 +17,17 @@
   <!-- ═══ Home Screen (Tree Picker) ═══ -->
   <div id="homeScreen" class="home-screen">
     <div class="home-header">
-      <div class="home-logo-row">
-        <img src="logo.png" alt="Logo" class="home-logo" />
-        <div>
-          <h1 class="home-title">Family Tree</h1>
-          <p class="home-subtitle">Choose a family to explore, or start a new one.</p>
+      <div class="home-header-row">
+        <div class="home-logo-row">
+          <img src="logo.png" alt="Logo" class="home-logo" />
+          <div>
+            <h1 class="home-title">Family Tree</h1>
+            <p class="home-subtitle">Choose a family to explore, or start a new one.</p>
+          </div>
         </div>
+        <button class="theme-toggle" id="homeThemeToggle" title="Toggle dark mode">
+          <span class="material-symbols-outlined">dark_mode</span>
+        </button>
       </div>
     </div>
     <div id="treeList" class="tree-grid">
@@ -42,6 +48,12 @@
         <span id="treeTitle" class="top-tree-name">Family Tree</span>
       </div>
       <div class="top-bar-right">
+        <button class="theme-toggle" id="treeThemeToggle" title="Toggle dark mode">
+          <span class="material-symbols-outlined">dark_mode</span>
+        </button>
+        <button id="reportBtn" class="header-btn">
+          <span class="material-symbols-outlined">summarize</span> Family Report
+        </button>
         <button id="printBtn" class="header-btn">
           <span class="material-symbols-outlined">picture_as_pdf</span> Save PDF
         </button>
@@ -60,6 +72,7 @@
       <button class="view-tab" data-view="descendants">Descendants</button>
       <button class="view-tab" data-view="family-group">Family Group Sheet</button>
       <button class="view-tab" data-view="map">Map</button>
+      <button class="view-tab" data-view="statistics">Statistics</button>
       <div style="flex:1"></div>
       <div class="search-bar">
         <span class="material-symbols-outlined" style="font-size:16px;color:var(--secondary)">search</span>
@@ -76,6 +89,7 @@
     <aside id="sidebar" class="sidebar"></aside>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="date-parser.js"></script>
   <script src="country-data.js"></script>
   <script src="world-map.js"></script>

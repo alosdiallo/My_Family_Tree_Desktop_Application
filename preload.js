@@ -59,5 +59,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Utilities
   pickPhoto:             function(personId)       { return ipcRenderer.invoke('pick-photo', personId); },
-  printToPdf:            function()              { return ipcRenderer.invoke('print-to-pdf'); }
+  printToPdf:            function()              { return ipcRenderer.invoke('print-to-pdf'); },
+  printToPrinter:        function()              { return ipcRenderer.invoke('print-to-printer'); },
+  saveReport:            function(html)           { return ipcRenderer.invoke('save-report', html); }
 });
