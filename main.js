@@ -1503,9 +1503,15 @@ ipcMain.handle('print-report', async function(ev, htmlContent) {
 // ═══════════════════════════════════════════════════════════════════
 
 var GITHUB_REPO = 'alosdiallo/My_Family_Tree_Desktop_Application';
-// Generate a fine-grained token at https://github.com/settings/tokens
-// with Issues read/write permission scoped to the repo above.
-var GITHUB_TOKEN = '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';
+// Token loaded from config.json (not committed to repo)
+var GITHUB_TOKEN = '';
+try {
+  var configPath = path.join(__dirname, 'config.json');
+  if (fs.existsSync(configPath)) {
+    var config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    GITHUB_TOKEN = config.githubToken || '';
+  }
+} catch(e) { console.log('No config.json found — bug reporting disabled'); }
 
 ipcMain.handle('get-system-info', function() {
   var info = {
