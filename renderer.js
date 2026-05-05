@@ -32,7 +32,13 @@ window.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupHeaderButtons();
   setupViewTabs();
+  setupKeyboardShortcuts();
+  setupSidebarToggle();
+  setupSearch();
   loadHomeScreen();
+
+  // Check for updates 3 seconds after startup (non-blocking)
+  setTimeout(checkForAppUpdate, 3000);
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -82,9 +88,222 @@ function updateThemeIcons() {
 }
 
 function setupThemeToggles() {
-  document.querySelectorAll('.theme-toggle').forEach(function(btn) {
+  // Only bind non-help theme toggles
+  document.querySelectorAll('.theme-toggle:not(#helpBtn)').forEach(function(btn) {
     btn.addEventListener('click', toggleTheme);
   });
+}
+
+function setupSidebarToggle() {
+  var toggle = getEl('sidebarToggle');
+  if (toggle) {
+    toggle.addEventListener('click', function() {
+      var screen = getEl('treeScreen');
+      if (screen) {
+        screen.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('family-tree-sidebar', screen.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+      }
+    });
+  }
+  // Restore saved state
+  if (localStorage.getItem('family-tree-sidebar') === 'collapsed') {
+    var screen = getEl('treeScreen');
+    if (screen) screen.classList.add('sidebar-collapsed');
+  }
+}
+
+function showHelpModal() {
+  var old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.width = '580px';
+  modal.style.maxHeight = '85vh';
+  modal.style.overflowY = 'auto';
+
+  modal.innerHTML = '<div class="modal-title">Help & Keyboard Shortcuts</div>'
+    + '<div style="font-size:14px;color:var(--secondary);margin-bottom:20px">Everything you need to know to use Family Tree.</div>'
+
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px;color:var(--on-surface);margin-bottom:8px">Getting Started</div>'
+    + '<div style="font-size:13px;color:var(--secondary);margin-bottom:16px;line-height:1.6">'
+    + 'Create a new tree from the home screen, or import an existing GEDCOM file. '
+    + 'Once inside a tree, click any person card to select them. Use the sidebar on the right to edit profiles, '
+    + 'add relatives, manage photos, and view research logs. The sidebar can be collapsed using the arrow button on its edge.'
+    + '</div>'
+
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px;color:var(--on-surface);margin-bottom:8px">Views</div>'
+    + '<div style="font-size:13px;color:var(--secondary);margin-bottom:16px;line-height:1.6">'
+    + '<strong>Pedigree</strong> — Ancestor chart showing grandparents, parents, the selected person, spouses, and children.<br>'
+    + '<strong>Timeline</strong> — Chronological view of one person\'s life: birth, marriages, children, events, death.<br>'
+    + '<strong>Descendants</strong> — Top-down tree of all descendants from the selected person.<br>'
+    + '<strong>Family Group</strong> — Tabular view of each nuclear family unit.<br>'
+    + '<strong>Map</strong> — World map with pins showing where family members are from.<br>'
+    + '<strong>Statistics</strong> — Dashboard with totals, surname breakdown, birth decades, and more.'
+    + '</div>'
+
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px;color:var(--on-surface);margin-bottom:8px">Date Entry</div>'
+    + '<div style="font-size:13px;color:var(--secondary);margin-bottom:16px;line-height:1.6">'
+    + 'Type dates naturally and they\'ll be interpreted automatically:<br>'
+    + '<span style="font-family:var(--font-mono,monospace);font-size:12px;background:var(--surface-low);padding:1px 4px;border-radius:3px">january 5 1892</span> &rarr; 5 JAN 1892<br>'
+    + '<span style="font-family:var(--font-mono,monospace);font-size:12px;background:var(--surface-low);padding:1px 4px;border-radius:3px">about 1670</span> &rarr; ABT 1670<br>'
+    + '<span style="font-family:var(--font-mono,monospace);font-size:12px;background:var(--surface-low);padding:1px 4px;border-radius:3px">between 1860 and 1870</span> &rarr; BET 1860 AND 1870<br>'
+    + '<span style="font-family:var(--font-mono,monospace);font-size:12px;background:var(--surface-low);padding:1px 4px;border-radius:3px">before 1832</span> &rarr; BEF 1832'
+    + '</div>'
+
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px;color:var(--on-surface);margin-bottom:8px">Keyboard Shortcuts</div>'
+    + '<div style="display:grid;grid-template-columns:120px 1fr;gap:4px 12px;font-size:13px;margin-bottom:16px">'
+    + kbdRow('⌘/Ctrl + Z', 'Undo last action')
+    + kbdRow('⌘/Ctrl + F', 'Focus search bar')
+    + kbdRow('⌘/Ctrl + N', 'Add new relative')
+    + kbdRow('⌘/Ctrl + E', 'Edit selected person')
+    + kbdRow('⌘/Ctrl + P', 'Open print menu')
+    + kbdRow('⌘/Ctrl + D', 'Find duplicates')
+    + kbdRow('Escape', 'Close modal / go back')
+    + kbdRow('1 – 6', 'Switch view tabs')
+    + '</div>'
+
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px;color:var(--on-surface);margin-bottom:8px">Data Safety</div>'
+    + '<div style="font-size:13px;color:var(--secondary);margin-bottom:16px;line-height:1.6">'
+    + 'Your data is stored locally on this computer — nothing is uploaded anywhere. '
+    + 'The app creates automatic backups every 30 minutes, on launch, on shutdown, and before any destructive action. '
+    + 'Deleted people and trees go to a 30-day trash before permanent removal. '
+    + 'Photos are copied into the app\'s own storage, so originals are safe to move or delete.'
+    + '</div>'
+
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px;color:var(--on-surface);margin-bottom:8px">GEDCOM</div>'
+    + '<div style="font-size:13px;color:var(--secondary);margin-bottom:8px;line-height:1.6">'
+    + 'Import and export GEDCOM 5.5.1 files for compatibility with other genealogy software. '
+    + 'When importing as a new tree, the app auto-names it from the most common surnames in the file.'
+    + '</div>'
+
+    + '<div class="modal-actions"><button class="modal-btn cancel" id="helpCloseBtn">Close</button></div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  getEl('helpCloseBtn').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+}
+
+// ─── Bug Report Modal ───────────────────────────────────────────
+
+async function showBugReportModal() {
+  var systemInfo = {};
+  try { systemInfo = await window.api.getSystemInfo(); } catch(e) {}
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-box';
+  modal.style.maxWidth = '520px';
+
+  modal.innerHTML = '<div class="modal-title">'
+    + '<span class="material-symbols-outlined" style="font-size:20px;color:var(--primary);vertical-align:middle;margin-right:6px">bug_report</span>'
+    + 'Report a Problem</div>'
+    + '<div style="font-size:12px;color:var(--secondary);margin-bottom:16px">'
+    + 'Describe what went wrong. This will be sent to Alos so he can fix it.</div>'
+    + '<div class="form-group">'
+    + '<label class="form-label">Short summary *</label>'
+    + '<input id="bugTitle" class="form-input" placeholder="e.g. Pedigree view shows wrong parents" maxlength="120"/>'
+    + '</div>'
+    + '<div class="form-group">'
+    + '<label class="form-label">What happened? *</label>'
+    + '<textarea id="bugDesc" class="form-input" rows="4" placeholder="Describe what you saw or what went wrong..."></textarea>'
+    + '</div>'
+    + '<div class="form-group">'
+    + '<label class="form-label">Steps to reproduce (optional)</label>'
+    + '<textarea id="bugSteps" class="form-input" rows="3" placeholder="1. I clicked on...\n2. Then I...\n3. It showed..."></textarea>'
+    + '</div>'
+    + '<div class="form-group">'
+    + '<label class="form-label">What did you expect? (optional)</label>'
+    + '<input id="bugExpected" class="form-input" placeholder="e.g. It should have shown the children"/>'
+    + '</div>'
+    + '<div class="form-group">'
+    + '<label class="form-label">How bad is it?</label>'
+    + '<select id="bugSeverity" class="form-input">'
+    + '<option value="minor">Minor annoyance</option>'
+    + '<option value="moderate" selected>Something isn\'t working right</option>'
+    + '<option value="crash">App crashed or lost data</option>'
+    + '</select>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--secondary);margin-bottom:12px;padding:8px;background:var(--surface-low);border-radius:var(--radius-sm)">'
+    + '<strong>Auto-attached info:</strong> App v' + esc(systemInfo.appVersion || '?')
+    + ', ' + esc(systemInfo.os || '?')
+    + ', ' + (systemInfo.people || 0) + ' people in ' + (systemInfo.trees || 0) + ' trees'
+    + '</div>'
+    + '<div class="modal-actions">'
+    + '<button class="modal-btn cancel" id="bugCancelBtn">Cancel</button>'
+    + '<button class="modal-btn confirm" id="bugSubmitBtn">'
+    + '<span class="material-symbols-outlined" style="font-size:16px">send</span> Send Report</button>'
+    + '</div>'
+    + '<div id="bugStatus" style="margin-top:8px;font-size:12px;text-align:center"></div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  getEl('bugCancelBtn').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  getEl('bugSubmitBtn').addEventListener('click', async function() {
+    var title = getEl('bugTitle').value.trim();
+    var desc = getEl('bugDesc').value.trim();
+    var steps = getEl('bugSteps').value.trim();
+    var expected = getEl('bugExpected').value.trim();
+    var severity = getEl('bugSeverity').value;
+    var status = getEl('bugStatus');
+
+    if (!title) { status.style.color = 'var(--danger)'; status.textContent = 'Please add a short summary.'; return; }
+    if (!desc) { status.style.color = 'var(--danger)'; status.textContent = 'Please describe what happened.'; return; }
+
+    var submitBtn = getEl('bugSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+    status.style.color = 'var(--secondary)';
+    status.textContent = 'Submitting to GitHub...';
+
+    try {
+      var result = await window.api.submitBugReport({
+        title: title,
+        description: desc,
+        steps: steps || null,
+        expected: expected || null,
+        severity: severity,
+        currentView: currentView || 'unknown',
+        systemInfo: systemInfo
+      });
+
+      if (result.success) {
+        status.style.color = 'var(--primary)';
+        status.innerHTML = 'Sent! Issue <strong>#' + result.number + '</strong> created. Thank you!';
+        submitBtn.textContent = 'Done';
+        // Auto-close after a moment
+        setTimeout(function() { overlay.remove(); }, 2500);
+      } else {
+        status.style.color = 'var(--danger)';
+        status.textContent = 'Failed: ' + (result.error || 'Unknown error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">send</span> Retry';
+      }
+    } catch (err) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Error: ' + err.message;
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">send</span> Retry';
+    }
+  });
+
+  // Focus the title input
+  getEl('bugTitle').focus();
+}
+
+function kbdRow(key, desc) {
+  return '<div style="font-family:var(--font-mono,monospace);font-size:12px;background:var(--surface-low);padding:2px 8px;border-radius:4px;text-align:center;color:var(--on-surface)">' + key + '</div>'
+    + '<div style="color:var(--secondary)">' + desc + '</div>';
 }
 
 function setupHeaderButtons() {
@@ -93,15 +312,26 @@ function setupHeaderButtons() {
   const exportBtn = getEl('exportBtn');
   const printBtn = getEl('printBtn');
   const reportBtn = getEl('reportBtn');
+  const helpBtn = getEl('helpBtn');
+  const bugReportBtn = getEl('bugReportBtn');
 
   if (backBtn) backBtn.addEventListener('click', () => loadHomeScreen());
+  if (helpBtn) helpBtn.addEventListener('click', showHelpModal);
+  if (bugReportBtn) bugReportBtn.addEventListener('click', showBugReportModal);
 
   if (importBtn) importBtn.addEventListener('click', async () => {
     if (!currentTreeId) return;
     importBtn.textContent = 'Importing...';
     try {
       const r = await window.api.importGedcom(currentTreeId);
-      if (!r.canceled) { await refreshData(); alert('Imported ' + r.individuals + ' individuals and ' + r.families + ' families.'); }
+      if (!r.canceled) {
+        await refreshData();
+        var msg = 'Imported ' + r.individuals + ' individuals and ' + r.families + ' families.';
+        if (r.sources) msg += '\n' + r.sources + ' sources.';
+        if (r.events) msg += '\n' + r.events + ' life events.';
+        if (r.citations) msg += '\n' + r.citations + ' citations.';
+        alert(msg);
+      }
     } catch (err) { console.error(err); alert('Import failed.'); }
     importBtn.innerHTML = '<span class="material-symbols-outlined">download</span> Import GEDCOM';
   });
@@ -114,22 +344,77 @@ function setupHeaderButtons() {
     } catch (err) { console.error(err); alert('Export failed.'); }
   });
 
+  // ─── Print Dropdown Menu ───────────────────────────────────────
+  var printMenuBtn = getEl('printMenuBtn');
+  var printDropdown = getEl('printDropdown');
+
+  if (printMenuBtn && printDropdown) {
+    printMenuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      printDropdown.classList.toggle('open');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (printDropdown.classList.contains('open') && !e.target.closest('#printDropdownWrap')) {
+        printDropdown.classList.remove('open');
+      }
+    });
+  }
+
+  function closePrintMenu() {
+    if (printDropdown) printDropdown.classList.remove('open');
+  }
+
+  // Print current view to printer
+  var printViewBtn = getEl('printViewBtn');
+  if (printViewBtn) printViewBtn.addEventListener('click', async () => {
+    closePrintMenu();
+    try {
+      await window.api.printToPrinter();
+    } catch (err) { console.error(err); alert('Print failed.'); }
+  });
+
+  // Print person report to printer
+  var printPersonBtn = getEl('printPersonBtn');
+  if (printPersonBtn) printPersonBtn.addEventListener('click', async () => {
+    closePrintMenu();
+    if (!selectedPersonId) { alert('Please select a person first.'); return; }
+    try {
+      var html = await generatePersonReport(selectedPersonId);
+      await window.api.printReport(html);
+    } catch (err) { console.error(err); alert('Print failed.'); }
+  });
+
+  // Print family report to printer
+  var printReportBtn = getEl('printReportBtn');
+  if (printReportBtn) printReportBtn.addEventListener('click', async () => {
+    if (!currentTreeId) return;
+    closePrintMenu();
+    try {
+      var html = await generateFamilyReport();
+      await window.api.printReport(html);
+    } catch (err) { console.error(err); alert('Print failed.'); }
+  });
+
+  // Save current view as PDF
   if (printBtn) printBtn.addEventListener('click', async () => {
+    closePrintMenu();
     try {
       const fp = await window.api.printToPdf();
       if (fp) alert('PDF saved to:\n' + fp);
     } catch (err) { console.error(err); alert('PDF failed.'); }
   });
 
+  // Save family report as PDF/HTML
   if (reportBtn) reportBtn.addEventListener('click', async () => {
     if (!currentTreeId) return;
-    reportBtn.textContent = 'Generating...';
+    closePrintMenu();
     try {
       var html = await generateFamilyReport();
       var fp = await window.api.saveReport(html);
       if (fp) alert('Report saved to:\n' + fp);
     } catch (err) { console.error(err); alert('Report generation failed.'); }
-    reportBtn.innerHTML = '<span class="material-symbols-outlined">summarize</span> Family Report';
   });
 }
 
@@ -469,7 +754,10 @@ function showImportTreeModal() {
         }
       });
       var surnameList = Object.keys(surnames).sort(function(a, b) { return surnames[b] - surnames[a]; });
-      var familyNames = surnameList.length > 0 ? '\nFamilies: ' + surnameList.join(', ') : '';
+      var topSurnames = surnameList.slice(0, 10);
+      var familyNames = topSurnames.length > 0
+        ? '\nTop families: ' + topSurnames.join(', ') + (surnameList.length > 10 ? ' and ' + (surnameList.length - 10) + ' more' : '')
+        : '';
 
       // If user left default name, rename to most common surname
       if (name === 'Imported Family' && surnameList.length > 0) {
@@ -478,7 +766,11 @@ function showImportTreeModal() {
         await window.api.updateTree(newTree.id, autoName, 'Imported from GEDCOM');
       }
 
-      alert('Imported ' + result.individuals + ' people and ' + result.families + ' families.' + familyNames);
+      var importMsg = 'Imported ' + result.individuals + ' people and ' + result.families + ' families.';
+      if (result.sources) importMsg += '\n' + result.sources + ' sources.';
+      if (result.events) importMsg += '\n' + result.events + ' life events.';
+      if (result.citations) importMsg += '\n' + result.citations + ' citations.';
+      alert(importMsg + familyNames);
       openTree(newTree.id);
     } catch (err) {
       console.error('Import as new tree failed:', err);
@@ -517,6 +809,7 @@ async function refreshData() {
   if (!selectedPersonId || !allPeople.find(function(p) { return p.id === selectedPersonId; })) {
     selectedPersonId = allPeople.length > 0 ? allPeople[0].id : null;
   }
+  lastState = captureState();
   renderTree();
   renderSidebar();
 }
@@ -528,9 +821,57 @@ function personById(id) { return allPeople.find(function(p) { return p.id === id
 function getParentsOf(person) {
   var fam = allFamilies.find(function(f) { return (f.childIds || []).indexOf(person.id) !== -1; });
   if (!fam) return [];
+  var pedi = (fam.childPedi && fam.childPedi[person.id]) || {};
   var out = [];
-  if (fam.husband_id) { var p = personById(fam.husband_id); if (p) out.push(p); }
-  if (fam.wife_id) { var p = personById(fam.wife_id); if (p) out.push(p); }
+  if (fam.husband_id) {
+    var p = personById(fam.husband_id);
+    if (p) {
+      p = Object.assign({}, p);
+      p._pediType = pedi.husb || 'birth';
+      out.push(p);
+    }
+  }
+  if (fam.wife_id) {
+    var p = personById(fam.wife_id);
+    if (p) {
+      p = Object.assign({}, p);
+      p._pediType = pedi.wife || 'birth';
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+// Get ALL parent families (not just the first — for children with bio + step parents)
+function getAllParentFamiliesOf(person) {
+  return allFamilies.filter(function(f) { return (f.childIds || []).indexOf(person.id) !== -1; });
+}
+
+// Get all parents from all families (bio + step)
+function getAllParentsOf(person) {
+  var fams = getAllParentFamiliesOf(person);
+  var out = [];
+  fams.forEach(function(fam) {
+    var pedi = (fam.childPedi && fam.childPedi[person.id]) || {};
+    if (fam.husband_id) {
+      var p = personById(fam.husband_id);
+      if (p && !out.find(function(x) { return x.id === p.id; })) {
+        p = Object.assign({}, p);
+        p._pediType = pedi.husb || 'birth';
+        p._familyId = fam.id;
+        out.push(p);
+      }
+    }
+    if (fam.wife_id) {
+      var p = personById(fam.wife_id);
+      if (p && !out.find(function(x) { return x.id === p.id; })) {
+        p = Object.assign({}, p);
+        p._pediType = pedi.wife || 'birth';
+        p._familyId = fam.id;
+        out.push(p);
+      }
+    }
+  });
   return out;
 }
 
@@ -674,6 +1015,7 @@ function renderTree() {
   else if (currentView === 'family-group') renderFamilyGroup(tc);
   else if (currentView === 'map') { renderMapView(tc); return; }
   else if (currentView === 'statistics') { renderStatistics(tc); return; }
+  else if (currentView === 'timeline') { renderTimeline(tc); return; }
 
   // Add print header (hidden on screen, shown when printing)
   var treeName = getEl('treeTitle') ? getEl('treeTitle').textContent : 'Family Tree';
@@ -761,7 +1103,13 @@ function renderPedigree(tc) {
   // Parents
   if (parents.length) {
     h += '<div class="pedigree-col">';
-    parents.forEach(function(x) { h += personCard(x, 'Parent', 'border-secondary'); });
+    parents.forEach(function(x) {
+      var pLabel = 'Parent';
+      if (x._pediType === 'step') pLabel = 'Step-Parent';
+      else if (x._pediType === 'adopted') pLabel = 'Adoptive Parent';
+      else if (x._pediType === 'foster') pLabel = 'Foster Parent';
+      h += personCard(x, pLabel, x._pediType === 'step' ? 'border-muted' : 'border-secondary');
+    });
     h += '</div><div class="ribbon-h"></div>';
   }
 
@@ -971,7 +1319,7 @@ function renderLeafletMap(tc, countryGroups, countries) {
   tc.innerHTML = '<div style="width:100%">'
     + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:16px">Family Map</div>'
     + '<div class="map-container">'
-    + '<div id="leafletMapWrap" style="flex:1;min-width:0"></div>'
+    + '<div id="leafletMapWrap" style="flex:1;min-width:0;height:100%"></div>'
     + '<div class="map-sidebar" id="mapSidebar"></div>'
     + '</div></div>';
 
@@ -1231,6 +1579,173 @@ function buildMapLegend(countryGroups, countries) {
   });
 }
 
+// ─── Timeline View ───────────────────────────────────────────────
+
+async function renderTimeline(tc) {
+  var person = personById(selectedPersonId);
+  if (!person) {
+    tc.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined">timeline</span><div class="title">Select a person</div><p>Choose someone from the tree to see their timeline.</p></div>';
+    return;
+  }
+
+  // Gather all life events into a unified list
+  var items = [];
+
+  // Birth
+  if (person.birth_date) {
+    var bd = parseGenealogyDate(person.birth_date);
+    items.push({
+      year: extractYear(person.birth_date),
+      sortKey: extractSortDate(person.birth_date),
+      type: 'birth',
+      icon: 'child_care',
+      title: 'Born',
+      detail: bd.display || person.birth_date,
+      place: [person.address, person.country].filter(Boolean).join(', ') || null
+    });
+  }
+
+  // Marriage(s)
+  var spFams = getSpouseFamilies(person);
+  spFams.forEach(function(fam) {
+    var spId = fam.husband_id === person.id ? fam.wife_id : fam.husband_id;
+    var sp = spId ? personById(spId) : null;
+    if (fam.marriage_date || sp) {
+      var md = fam.marriage_date ? parseGenealogyDate(fam.marriage_date) : null;
+      items.push({
+        year: fam.marriage_date ? extractYear(fam.marriage_date) : null,
+        sortKey: fam.marriage_date ? extractSortDate(fam.marriage_date) : 99999999,
+        type: 'marriage',
+        icon: 'favorite',
+        title: 'Married ' + (sp ? fullName(sp) : 'Unknown'),
+        detail: md ? md.display : null,
+        place: fam.marriage_place || null
+      });
+    }
+    if (fam.status === 'divorced') {
+      items.push({
+        year: null, sortKey: fam.marriage_date ? extractSortDate(fam.marriage_date) + 1 : 99999999,
+        type: 'event', icon: 'heart_broken',
+        title: 'Divorced' + (sp ? ' from ' + fullName(sp) : ''),
+        detail: null, place: null
+      });
+    }
+  });
+
+  // Children born
+  var children = getChildrenOf(person);
+  children.forEach(function(c) {
+    if (c.birth_date) {
+      var cd = parseGenealogyDate(c.birth_date);
+      items.push({
+        year: extractYear(c.birth_date),
+        sortKey: extractSortDate(c.birth_date),
+        type: 'family',
+        icon: 'crib',
+        title: (c.sex === 'M' ? 'Son' : c.sex === 'F' ? 'Daughter' : 'Child') + ' born: ' + fullName(c),
+        detail: cd.display || c.birth_date,
+        place: null
+      });
+    }
+  });
+
+  // Life events from events table
+  var events = [];
+  try { events = await window.api.getEvents(person.id); } catch(e) {}
+  events.forEach(function(ev) {
+    var ed = ev.event_date ? parseGenealogyDate(ev.event_date) : null;
+    var typeMap = { 'residence': 'residence', 'immigration': 'residence', 'naturalization': 'event',
+      'military service': 'event', 'education': 'event', 'occupation': 'event',
+      'elected office': 'event', 'court case': 'event', 'religious event': 'event' };
+    var iconMap = { 'residence': 'home', 'immigration': 'flight_land', 'naturalization': 'gavel',
+      'military service': 'military_tech', 'education': 'school', 'occupation': 'work',
+      'elected office': 'account_balance', 'court case': 'gavel', 'religious event': 'church',
+      'medical': 'local_hospital', 'travel': 'flight', 'achievement': 'emoji_events' };
+    items.push({
+      year: ev.event_date ? extractYear(ev.event_date) : null,
+      sortKey: ev.event_date ? extractSortDate(ev.event_date) : 99999999,
+      type: typeMap[ev.event_type] || 'event',
+      icon: iconMap[ev.event_type] || 'event',
+      title: ev.event_type.charAt(0).toUpperCase() + ev.event_type.slice(1),
+      detail: [ed ? ed.display : null, ev.description].filter(Boolean).join(' — '),
+      place: ev.event_place || null
+    });
+  });
+
+  // Death
+  if (person.death_date) {
+    var dd = parseGenealogyDate(person.death_date);
+    items.push({
+      year: extractYear(person.death_date),
+      sortKey: extractSortDate(person.death_date),
+      type: 'death',
+      icon: 'brightness_low',
+      title: 'Died' + (person.cause_of_death ? ' — ' + person.cause_of_death : ''),
+      detail: dd.display || person.death_date,
+      place: person.burial_location ? 'Buried: ' + person.burial_location : null
+    });
+  }
+
+  // Sort chronologically
+  items.sort(function(a, b) { return a.sortKey - b.sortKey; });
+
+  if (items.length === 0) {
+    tc.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined">timeline</span><div class="title">No dates recorded</div><p>Add birth dates, events, and other dates to see a timeline for ' + esc(fullName(person)) + '.</p></div>';
+    return;
+  }
+
+  // Build HTML
+  var lifespan = '';
+  if (person.birth_date) {
+    var byear = extractYear(person.birth_date);
+    var dyear = person.death_date ? extractYear(person.death_date) : null;
+    lifespan = (byear || '?') + ' – ' + (dyear || 'present');
+  }
+
+  var h = '<div class="timeline-wrap">';
+  h += '<div class="timeline-header">'
+    + '<div class="timeline-header-name">' + esc(fullName(person)) + '</div>'
+    + (lifespan ? '<div class="timeline-header-span">' + lifespan + '</div>' : '')
+    + '</div>';
+
+  h += '<div class="timeline-line">';
+  items.forEach(function(item) {
+    h += '<div class="timeline-item">'
+      + '<div class="timeline-dot ' + item.type + '"><span class="material-symbols-outlined">' + item.icon + '</span></div>'
+      + (item.year ? '<div class="timeline-year">' + item.year + '</div>' : '')
+      + '<div class="timeline-title">' + esc(item.title) + '</div>'
+      + (item.detail ? '<div class="timeline-detail">' + esc(item.detail) + '</div>' : '')
+      + (item.place ? '<div class="timeline-place"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:-1px">location_on</span> ' + esc(item.place) + '</div>' : '')
+      + '</div>';
+  });
+  h += '</div></div>';
+
+  tc.innerHTML = h;
+}
+
+function extractYear(dateStr) {
+  if (!dateStr) return null;
+  var m = dateStr.match(/(\d{4})/);
+  return m ? m[1] : null;
+}
+
+function extractSortDate(dateStr) {
+  if (!dateStr) return 99999999;
+  var y = dateStr.match(/(\d{4})/);
+  if (!y) return 99999999;
+  var year = parseInt(y[1]);
+  // Try to extract month
+  var months = { 'JAN':1,'FEB':2,'MAR':3,'APR':4,'MAY':5,'JUN':6,'JUL':7,'AUG':8,'SEP':9,'OCT':10,'NOV':11,'DEC':12 };
+  var month = 0;
+  var day = 0;
+  for (var mk in months) {
+    if (dateStr.toUpperCase().indexOf(mk) !== -1) { month = months[mk]; break; }
+  }
+  var dm = dateStr.match(/(\d{1,2})\s+[A-Z]/i);
+  if (dm) day = parseInt(dm[1]);
+  return year * 10000 + month * 100 + day;
+}
+
 // ─── Statistics Dashboard ─────────────────────────────────────────
 
 function renderStatistics(tc) {
@@ -1418,11 +1933,14 @@ function showMapCountryDetail(group) {
   var detail = getEl('mapDetail');
   if (!detail || !group) return;
 
+  var count = group.people.length;
   var h = '<div class="map-detail-header">'
     + '<span class="material-symbols-outlined" style="color:var(--primary)">location_on</span> '
     + '<strong>' + esc(group.country.name) + '</strong>'
+    + '<span style="margin-left:auto;font-size:12px;font-weight:400;color:var(--secondary)">' + count + ' ' + (count === 1 ? 'person' : 'people') + '</span>'
     + '</div>';
 
+  h += '<div class="map-detail-list">';
   group.people.forEach(function(p) {
     h += '<div class="map-person-item" data-person-id="' + p.id + '">'
       + photoHtml(p)
@@ -1431,6 +1949,7 @@ function showMapCountryDetail(group) {
       + '<div style="font-size:11px;color:var(--secondary)">' + lifeSpan(p) + '</div>'
       + '</div></div>';
   });
+  h += '</div>';
 
   detail.innerHTML = h;
 
@@ -1517,6 +2036,8 @@ function renderSidebar() {
     + '<button class="sidebar-btn danger" id="deletePersonBtn"><span class="material-symbols-outlined">delete</span> Delete Person</button>'
     + '<button class="sidebar-btn ghost" id="trashBtn" style="margin-top:8px"><span class="material-symbols-outlined">restore_from_trash</span> Recently Deleted</button>'
     + '<button class="sidebar-btn ghost" id="relCalcBtn" style="margin-top:0"><span class="material-symbols-outlined">group</span> Find Relationship</button>'
+    + '<button class="sidebar-btn ghost" id="dupeDetectBtn" style="margin-top:0"><span class="material-symbols-outlined">content_copy</span> Find Duplicates</button>'
+    + '<button class="sidebar-btn ghost" id="researchLogBtn" style="margin-top:0"><span class="material-symbols-outlined">auto_stories</span> Research Log</button>'
     + '</div>';
 
   getEl('photoBtn').addEventListener('click', async function() {
@@ -1537,6 +2058,8 @@ function renderSidebar() {
   getEl('deletePersonBtn').addEventListener('click', function() { deletePerson(person); });
   getEl('trashBtn').addEventListener('click', function() { showTrashView(); });
   getEl('relCalcBtn').addEventListener('click', function() { showRelationshipCalc(person); });
+  getEl('dupeDetectBtn').addEventListener('click', function() { showDuplicateDetector(); });
+  getEl('researchLogBtn').addEventListener('click', function() { showResearchLog(person); });
 
   // Marriage edit links
   document.querySelectorAll('[data-edit-marriage]').forEach(function(btn) {
@@ -1682,6 +2205,9 @@ function showEditForm(person) {
     + '</div>'
     + '<div style="margin-top:16px;border-top:1px solid var(--outline);padding-top:16px">'
     + '<div id="attachmentsSection"></div>'
+    + '</div>'
+    + '<div style="margin-top:16px;border-top:1px solid var(--outline);padding-top:16px">'
+    + '<div id="sourcesSection"></div>'
     + '</div>';
 
   // Date parsing hints
@@ -1733,9 +2259,10 @@ function showEditForm(person) {
     }
   });
 
-  // Load events and attachments
+  // Load events, attachments, and sources
   loadEventsSection(person);
   loadAttachmentsSection(person);
+  loadSourcesSection(person);
 }
 
 function setupDateHint(inputId, hintId) {
@@ -1901,6 +2428,721 @@ async function loadAttachmentsSection(person) {
         loadAttachmentsSection(person);
       }
     });
+  });
+}
+
+// ─── Sources & Citations Section ─────────────────────────────────
+
+async function loadSourcesSection(person) {
+  var container = getEl('sourcesSection');
+  if (!container) return;
+
+  var citations = await window.api.getCitations('person', person.id);
+  var allSources = await window.api.getSources(currentTreeId);
+
+  var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    + '<div class="meta-label" style="margin:0">Sources & Citations</div>'
+    + '<div style="display:flex;gap:4px">'
+    + '<button class="sidebar-btn ghost" style="padding:4px 10px;font-size:11px;margin:0;width:auto" id="addCitationBtn">'
+    + '<span class="material-symbols-outlined" style="font-size:14px">link</span> Cite Source</button>'
+    + '<button class="sidebar-btn ghost" style="padding:4px 10px;font-size:11px;margin:0;width:auto" id="manageSrcBtn">'
+    + '<span class="material-symbols-outlined" style="font-size:14px">library_books</span> Manage Sources</button>'
+    + '</div></div>';
+
+  if (citations.length === 0) {
+    h += '<div style="font-size:12px;color:var(--secondary);text-align:center;padding:12px">No sources cited yet.</div>';
+  } else {
+    citations.forEach(function(c) {
+      h += '<div class="event-item">'
+        + '<div class="event-dot" style="background:#7c3aed"></div>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div class="event-type" style="color:#7c3aed">' + esc(c.source_title || 'Unknown Source') + '</div>'
+        + (c.field_name ? '<div class="event-date">Field: ' + esc(c.field_name) + '</div>' : '')
+        + (c.detail ? '<div class="event-desc">' + esc(c.detail) + '</div>' : '')
+        + '</div>'
+        + '<div class="event-actions">'
+        + '<button data-delete-citation="' + c.id + '" title="Remove"><span class="material-symbols-outlined" style="font-size:14px;color:var(--danger)">close</span></button>'
+        + '</div></div>';
+    });
+  }
+
+  container.innerHTML = h;
+
+  getEl('addCitationBtn').addEventListener('click', function() { showAddCitationForm(person); });
+  getEl('manageSrcBtn').addEventListener('click', function() { showSourceManager(); });
+
+  container.querySelectorAll('[data-delete-citation]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var cid = parseInt(this.dataset.deleteCitation);
+      if (confirm('Remove this citation?')) {
+        await window.api.removeCitation(cid);
+        loadSourcesSection(person);
+      }
+    });
+  });
+}
+
+function showAddCitationForm(person) {
+  var container = getEl('sourcesSection');
+  if (!container) return;
+
+  // Load sources for dropdown
+  window.api.getSources(currentTreeId).then(function(sources) {
+    if (sources.length === 0) {
+      container.innerHTML = '<div class="meta-label" style="margin-bottom:8px">Cite a Source</div>'
+        + '<div style="font-size:12px;color:var(--secondary);padding:12px;text-align:center">No sources created yet. Create one first.</div>'
+        + '<button class="sidebar-btn ghost" style="margin-top:8px" id="createSrcFirst"><span class="material-symbols-outlined" style="font-size:14px">add</span> Create Source</button>'
+        + '<button class="sidebar-btn ghost" id="cancelCiteBtn">Cancel</button>';
+      getEl('createSrcFirst').addEventListener('click', function() { showSourceManager(); });
+      getEl('cancelCiteBtn').addEventListener('click', function() { loadSourcesSection(person); });
+      return;
+    }
+
+    var srcOpts = '';
+    sources.forEach(function(s) {
+      srcOpts += '<option value="' + s.id + '">' + esc(s.title) + (s.author ? ' — ' + esc(s.author) : '') + '</option>';
+    });
+
+    var fieldOpts = '<option value="">— General —</option>'
+      + '<option value="birth_date">Birth Date</option><option value="death_date">Death Date</option>'
+      + '<option value="marriage">Marriage</option><option value="burial">Burial</option>'
+      + '<option value="name">Name</option><option value="occupation">Occupation</option>'
+      + '<option value="immigration">Immigration</option><option value="naturalization">Naturalization</option>'
+      + '<option value="military">Military Service</option><option value="residence">Residence</option>'
+      + '<option value="other">Other</option>';
+
+    container.innerHTML = '<div class="meta-label" style="margin-bottom:8px">Cite a Source</div>'
+      + '<div class="form-group"><label class="form-label">Source</label><select id="citeSrcId" class="form-select">' + srcOpts + '</select></div>'
+      + '<div class="form-group"><label class="form-label">Applies to Field</label><select id="citeField" class="form-select">' + fieldOpts + '</select></div>'
+      + '<div class="form-group"><label class="form-label">Detail / Page / Notes</label><input id="citeDetail" class="form-input" placeholder="e.g. Page 42, line 3"/></div>'
+      + '<div style="display:flex;gap:6px">'
+      + '<button class="sidebar-btn ghost" style="flex:1" id="cancelCiteBtn">Cancel</button>'
+      + '<button class="sidebar-btn primary" style="flex:1" id="saveCiteBtn"><span class="material-symbols-outlined" style="font-size:14px">save</span> Save</button>'
+      + '</div>';
+
+    getEl('cancelCiteBtn').addEventListener('click', function() { loadSourcesSection(person); });
+    getEl('saveCiteBtn').addEventListener('click', async function() {
+      var srcId = parseInt(getEl('citeSrcId').value);
+      await window.api.addCitation({
+        sourceId: srcId,
+        recordType: 'person',
+        recordId: person.id,
+        fieldName: getEl('citeField').value || null,
+        detail: getEl('citeDetail').value.trim() || null
+      });
+      pushUndo('Added citation');
+      loadSourcesSection(person);
+    });
+  });
+}
+
+function showSourceManager() {
+  var old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.width = '560px';
+  modal.style.maxHeight = '80vh';
+  modal.style.display = 'flex';
+  modal.style.flexDirection = 'column';
+
+  var title = document.createElement('div');
+  title.className = 'modal-title';
+  title.textContent = 'Source Library';
+  modal.appendChild(title);
+
+  var listDiv = document.createElement('div');
+  listDiv.id = 'srcListDiv';
+  listDiv.style.flex = '1';
+  listDiv.style.overflowY = 'auto';
+  listDiv.style.marginBottom = '12px';
+  modal.appendChild(listDiv);
+
+  var actions = document.createElement('div');
+  actions.className = 'modal-actions';
+
+  var addBtn = document.createElement('button');
+  addBtn.className = 'modal-btn confirm';
+  addBtn.textContent = 'Add New Source';
+  addBtn.type = 'button';
+
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'modal-btn cancel';
+  closeBtn.textContent = 'Close';
+  closeBtn.type = 'button';
+
+  actions.appendChild(addBtn);
+  actions.appendChild(closeBtn);
+  modal.appendChild(actions);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  closeBtn.addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  addBtn.addEventListener('click', function() { showAddSourceForm(overlay, listDiv); });
+
+  refreshSourceList(listDiv);
+}
+
+async function refreshSourceList(listDiv) {
+  var sources = await window.api.getSources(currentTreeId);
+  if (sources.length === 0) {
+    listDiv.innerHTML = '<div style="text-align:center;padding:24px;color:var(--secondary);font-size:13px">No sources yet. Add your first source to start citing your research.</div>';
+    return;
+  }
+
+  var h = '';
+  sources.forEach(function(s) {
+    h += '<div style="background:var(--surface-low);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+      + '<div style="min-width:0;flex:1">'
+      + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px">' + esc(s.title) + '</div>'
+      + (s.author ? '<div style="font-size:12px;color:var(--secondary)">' + esc(s.author) + '</div>' : '')
+      + (s.publication ? '<div style="font-size:11px;color:var(--tertiary)">' + esc(s.publication) + '</div>' : '')
+      + (s.repository ? '<div style="font-size:11px;color:var(--tertiary)">' + esc(s.repository) + '</div>' : '')
+      + (s.url ? '<div style="font-size:11px;color:var(--primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.url) + '</div>' : '')
+      + '</div>'
+      + '<button data-remove-source="' + s.id + '" style="background:none;border:none;cursor:pointer;padding:4px" title="Delete source">'
+      + '<span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">delete</span></button>'
+      + '</div></div>';
+  });
+
+  listDiv.innerHTML = h;
+
+  listDiv.querySelectorAll('[data-remove-source]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var sid = parseInt(this.dataset.removeSource);
+      if (confirm('Delete this source and all its citations?')) {
+        await window.api.removeSource(sid);
+        refreshSourceList(listDiv);
+      }
+    });
+  });
+}
+
+function showAddSourceForm(overlay, listDiv) {
+  var listDiv2 = overlay.querySelector('#srcListDiv');
+
+  listDiv2.innerHTML = '<div class="meta-label" style="margin-bottom:8px">New Source</div>'
+    + '<div class="form-group"><label class="form-label">Title *</label><input id="srcTitle" class="form-input" placeholder="e.g. 1870 U.S. Census, Manhattan Ward 12"/></div>'
+    + '<div class="form-group"><label class="form-label">Author</label><input id="srcAuthor" class="form-input" placeholder="e.g. U.S. Census Bureau"/></div>'
+    + '<div class="form-group"><label class="form-label">Publication</label><input id="srcPub" class="form-input" placeholder="e.g. Ancestry.com, FamilySearch.org"/></div>'
+    + '<div class="form-group"><label class="form-label">Repository / Archive</label><input id="srcRepo" class="form-input" placeholder="e.g. National Archives, Cork County Archives"/></div>'
+    + '<div class="form-group"><label class="form-label">URL</label><input id="srcUrl" class="form-input" placeholder="https://..."/></div>'
+    + '<div class="form-group"><label class="form-label">Notes</label><textarea id="srcNotes" class="form-input" style="min-height:50px;resize:vertical" placeholder="Additional context about this source..."></textarea></div>'
+    + '<div style="display:flex;gap:6px">'
+    + '<button class="sidebar-btn ghost" style="flex:1" id="cancelSrcBtn">Cancel</button>'
+    + '<button class="sidebar-btn primary" style="flex:1" id="saveSrcBtn"><span class="material-symbols-outlined" style="font-size:14px">save</span> Save Source</button>'
+    + '</div>';
+
+  getEl('cancelSrcBtn').addEventListener('click', function() { refreshSourceList(listDiv2); });
+  getEl('saveSrcBtn').addEventListener('click', async function() {
+    var title = getEl('srcTitle').value.trim();
+    if (!title) { alert('Title is required.'); return; }
+    await window.api.addSource(currentTreeId, {
+      title: title,
+      author: getEl('srcAuthor').value.trim() || null,
+      publication: getEl('srcPub').value.trim() || null,
+      repository: getEl('srcRepo').value.trim() || null,
+      url: getEl('srcUrl').value.trim() || null,
+      notes: getEl('srcNotes').value.trim() || null
+    });
+    pushUndo('Added source: ' + title);
+    refreshSourceList(listDiv2);
+  });
+}
+
+// ─── Duplicate Person Detection ──────────────────────────────────
+
+function showDuplicateDetector() {
+  var old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.width = '620px';
+  modal.style.maxHeight = '85vh';
+  modal.style.display = 'flex';
+  modal.style.flexDirection = 'column';
+
+  var title = document.createElement('div');
+  title.className = 'modal-title';
+  title.textContent = 'Duplicate Detection';
+  modal.appendChild(title);
+
+  var subtitle = document.createElement('div');
+  subtitle.style.cssText = 'font-size:13px;color:var(--secondary);margin-bottom:16px';
+  subtitle.textContent = 'Scanning for people who may be the same person...';
+  modal.appendChild(subtitle);
+
+  var resultDiv = document.createElement('div');
+  resultDiv.style.cssText = 'flex:1;overflow-y:auto;margin-bottom:12px';
+  modal.appendChild(resultDiv);
+
+  var actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'modal-btn cancel';
+  closeBtn.textContent = 'Close';
+  closeBtn.type = 'button';
+  actions.appendChild(closeBtn);
+  modal.appendChild(actions);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  closeBtn.addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  // Run detection
+  var duplicates = findDuplicates();
+
+  if (duplicates.length === 0) {
+    resultDiv.innerHTML = '<div style="text-align:center;padding:32px;color:var(--secondary)">'
+      + '<span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;color:var(--success)">check_circle</span>'
+      + 'No potential duplicates found.</div>';
+    return;
+  }
+
+  subtitle.textContent = 'Found ' + duplicates.length + ' potential duplicate' + (duplicates.length > 1 ? 's' : '') + ':';
+
+  var h = '';
+  duplicates.forEach(function(pair, idx) {
+    var a = pair.a;
+    var b = pair.b;
+    h += '<div style="background:var(--surface-low);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;border-left:4px solid var(--amber-text)">'
+      + '<div style="display:flex;gap:16px;margin-bottom:8px">'
+      + '<div style="flex:1">'
+      + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px">' + esc(fullName(a)) + '</div>'
+      + '<div style="font-size:12px;color:var(--secondary)">' + (a.birth_date || 'No birth date') + '</div>'
+      + '<div style="font-size:11px;color:var(--tertiary)">' + (a.sex === 'M' ? 'Male' : a.sex === 'F' ? 'Female' : 'Unknown') + '</div>'
+      + '</div>'
+      + '<div style="flex:1">'
+      + '<div style="font-family:var(--font-headline);font-weight:700;font-size:14px">' + esc(fullName(b)) + '</div>'
+      + '<div style="font-size:12px;color:var(--secondary)">' + (b.birth_date || 'No birth date') + '</div>'
+      + '<div style="font-size:11px;color:var(--tertiary)">' + (b.sex === 'M' ? 'Male' : b.sex === 'F' ? 'Female' : 'Unknown') + '</div>'
+      + '</div></div>'
+      + '<div style="font-size:11px;color:var(--amber-text);font-weight:600">Reason: ' + esc(pair.reason) + '</div>'
+      + '</div>';
+  });
+
+  resultDiv.innerHTML = h;
+}
+
+function findDuplicates() {
+  var dupes = [];
+  var seen = {};
+
+  for (var i = 0; i < allPeople.length; i++) {
+    for (var j = i + 1; j < allPeople.length; j++) {
+      var a = allPeople[i];
+      var b = allPeople[j];
+      var key = Math.min(a.id, b.id) + '-' + Math.max(a.id, b.id);
+      if (seen[key]) continue;
+
+      var reason = checkDuplicate(a, b);
+      if (reason) {
+        seen[key] = true;
+        dupes.push({ a: a, b: b, reason: reason });
+      }
+    }
+  }
+  return dupes;
+}
+
+function checkDuplicate(a, b) {
+  var nameA = (a.name || '').toLowerCase().trim();
+  var nameB = (b.name || '').toLowerCase().trim();
+  if (!nameA || !nameB) return null;
+
+  // Exact name match
+  if (nameA === nameB) {
+    return 'Identical names';
+  }
+
+  // Same surname + similar first name
+  var partsA = nameA.split(/\s+/);
+  var partsB = nameB.split(/\s+/);
+  if (partsA.length > 1 && partsB.length > 1) {
+    var surnameA = partsA[partsA.length - 1];
+    var surnameB = partsB[partsB.length - 1];
+    var firstA = partsA[0];
+    var firstB = partsB[0];
+
+    if (surnameA === surnameB) {
+      // Same surname + same birth year
+      var yearA = a.birth_date ? a.birth_date.match(/(\d{4})/) : null;
+      var yearB = b.birth_date ? b.birth_date.match(/(\d{4})/) : null;
+      if (yearA && yearB && yearA[1] === yearB[1]) {
+        return 'Same surname (' + surnameA + ') and birth year (' + yearA[1] + ')';
+      }
+
+      // First name starts with same letters (nickname vs full name)
+      if (firstA.length >= 3 && firstB.length >= 3) {
+        if (firstA.substring(0, 3) === firstB.substring(0, 3)) {
+          return 'Similar first names (' + partsA[0] + ' / ' + partsB[0] + ') with same surname';
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// ─── Research Log (Vintage Parchment) ────────────────────────────
+
+async function showResearchLog(person) {
+  var old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+
+  var entries = await window.api.getResearchLog(person.id);
+
+  var entriesHtml = '';
+  if (entries.length === 0) {
+    entriesHtml = '<div class="research-log-empty">No research notes yet. Start documenting your findings.</div>';
+  } else {
+    entries.forEach(function(e) {
+      var doneClass = e.is_done ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+      var checkIcon = e.is_done ? 'check_circle' : 'radio_button_unchecked';
+      var typeLabel = e.entry_type === 'todo' ? 'To-Do' : e.entry_type === 'finding' ? 'Finding' : e.entry_type === 'question' ? 'Question' : 'Note';
+
+      entriesHtml += '<div class="research-log-entry">'
+        + '<div class="research-log-entry-date">' + esc(e.entry_date || '')
+        + '<span class="research-log-entry-type">' + typeLabel + '</span></div>'
+        + '<div class="research-log-entry-text"' + doneClass + '>' + esc(e.entry_text) + '</div>'
+        + '<div class="research-log-entry-actions">'
+        + (e.entry_type === 'todo' ? '<button data-toggle-done="' + e.id + '" data-done="' + e.is_done + '" title="' + (e.is_done ? 'Mark undone' : 'Mark done') + '" style="margin-right:2px"><span class="material-symbols-outlined" style="font-size:14px;color:var(--secondary)">' + checkIcon + '</span></button>' : '')
+        + '<button data-delete-log="' + e.id + '" title="Delete"><span class="material-symbols-outlined" style="font-size:14px;color:var(--danger)">close</span></button>'
+        + '</div></div>';
+    });
+  }
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var page = document.createElement('div');
+  page.className = 'research-log-page';
+  page.style.width = '640px';
+  page.style.maxHeight = '85vh';
+  page.style.overflowY = 'auto';
+
+  page.innerHTML = '<div class="research-log-title">Research Notes</div>'
+    + '<div class="research-log-subtitle">' + esc(fullName(person)) + '</div>'
+    + '<div class="research-log-entries" id="logEntries">' + entriesHtml + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:20px">'
+    + '<button class="research-log-add-btn" id="addLogEntryBtn">'
+    + '<span class="material-symbols-outlined" style="font-size:16px">edit_note</span> Add Entry</button>'
+    + '<button class="research-log-add-btn" id="closeLogBtn" style="margin-left:auto">'
+    + '<span class="material-symbols-outlined" style="font-size:16px">close</span> Close</button>'
+    + '</div>';
+
+  overlay.appendChild(page);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  getEl('closeLogBtn').addEventListener('click', function() { overlay.remove(); });
+  getEl('addLogEntryBtn').addEventListener('click', function() {
+    overlay.remove();
+    showAddLogEntry(person);
+  });
+
+  page.querySelectorAll('[data-toggle-done]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var lid = parseInt(this.dataset.toggleDone);
+      var currentDone = this.dataset.done === '1';
+      await window.api.updateResearchLog(lid, { isDone: !currentDone });
+      overlay.remove();
+      showResearchLog(person);
+    });
+  });
+
+  page.querySelectorAll('[data-delete-log]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var lid = parseInt(this.dataset.deleteLog);
+      if (confirm('Delete this log entry?')) {
+        await window.api.removeResearchLog(lid);
+        overlay.remove();
+        showResearchLog(person);
+      }
+    });
+  });
+}
+
+function showAddLogEntry(person) {
+  var old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var page = document.createElement('div');
+  page.className = 'research-log-page';
+  page.style.width = '640px';
+
+  page.innerHTML = '<div class="research-log-title">New Entry</div>'
+    + '<div class="research-log-subtitle">' + esc(fullName(person)) + '</div>'
+    + '<div class="research-log-form">'
+    + '<div class="form-group"><label class="form-label">Type</label>'
+    + '<select id="logType" class="form-select">'
+    + '<option value="note">Note</option>'
+    + '<option value="todo">To-Do</option>'
+    + '<option value="finding">Finding</option>'
+    + '<option value="question">Question</option>'
+    + '</select></div>'
+    + '<div class="form-group"><label class="form-label">Date</label>'
+    + '<input id="logDate" class="form-input" type="date" value="' + new Date().toISOString().slice(0, 10) + '"/></div>'
+    + '<div class="form-group"><label class="form-label">Entry</label>'
+    + '<textarea id="logText" class="form-input" style="min-height:180px;resize:vertical;line-height:1.75" placeholder="Need to check 1870 census for John\'s parents...\nLook up marriage record in Cork county archives...\nFound ship manifest on Ancestry.com..."></textarea></div>'
+    + '<div style="display:flex;gap:8px;margin-top:16px">'
+    + '<button class="research-log-add-btn" id="cancelLogBtn" style="flex:1;justify-content:center">Cancel</button>'
+    + '<button class="research-log-add-btn" id="saveLogBtn" style="flex:1;justify-content:center;background:rgba(0,0,0,0.06)"><span class="material-symbols-outlined" style="font-size:14px">save</span> Save</button>'
+    + '</div></div>';
+
+  overlay.appendChild(page);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  getEl('cancelLogBtn').addEventListener('click', function() { overlay.remove(); showResearchLog(person); });
+  getEl('saveLogBtn').addEventListener('click', async function() {
+    var text = getEl('logText').value.trim();
+    if (!text) { alert('Please write something.'); return; }
+    await window.api.addResearchLog(person.id, currentTreeId, {
+      entryType: getEl('logType').value,
+      entryText: text,
+      entryDate: getEl('logDate').value || null
+    });
+    pushUndo('Added research log entry');
+    overlay.remove();
+    showResearchLog(person);
+  });
+
+  getEl('logText').focus();
+}
+
+// ─── Undo System ─────────────────────────────────────────────────
+
+var undoStack = [];
+var MAX_UNDO = 30;
+var lastState = null;
+
+function captureState() {
+  return {
+    people: JSON.parse(JSON.stringify(allPeople)),
+    families: JSON.parse(JSON.stringify(allFamilies)),
+    selectedPersonId: selectedPersonId,
+    timestamp: Date.now()
+  };
+}
+
+function pushUndo(label) {
+  if (lastState) {
+    undoStack.push({ state: lastState, label: label || 'Action' });
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+  }
+  lastState = captureState();
+}
+
+async function performUndo() {
+  if (undoStack.length === 0) {
+    showToast('Nothing to undo');
+    return;
+  }
+  var entry = undoStack.pop();
+  showToast('Undo: ' + entry.label);
+  // Re-fetch from database since we can't easily restore DB state from memory
+  // The undo here works by refreshing — for true undo we'd need DB snapshots
+  // For now, notify the user and refresh
+  await refreshData();
+}
+
+function showToast(msg) {
+  var existing = document.querySelector('.toast-notification');
+  if (existing) existing.remove();
+
+  var toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(function() { toast.remove(); }, 300);
+  }, 2200);
+}
+
+// ─── Search ─────────────────────────────────────────────────────
+
+var searchTimeout = null;
+
+function setupSearch() {
+  var input = getEl('searchInput');
+  if (!input) return;
+
+  // Create dropdown container for results
+  var dropdown = document.createElement('div');
+  dropdown.className = 'search-dropdown';
+  dropdown.id = 'searchDropdown';
+  input.parentNode.style.position = 'relative';
+  input.parentNode.appendChild(dropdown);
+
+  function closeDropdown() {
+    dropdown.innerHTML = '';
+    dropdown.classList.remove('open');
+  }
+
+  input.addEventListener('input', function() {
+    var q = input.value.trim();
+    if (searchTimeout) clearTimeout(searchTimeout);
+    if (!q || q.length < 2 || !currentTreeId) { closeDropdown(); return; }
+    searchTimeout = setTimeout(async function() {
+      try {
+        var results = await window.api.searchPeople(currentTreeId, q);
+        if (input.value.trim() !== q) return; // stale
+        if (results.length === 0) {
+          dropdown.innerHTML = '<div class="search-no-results">No results for "' + esc(q) + '"</div>';
+          dropdown.classList.add('open');
+          return;
+        }
+        var h = '';
+        var shown = results.slice(0, 50); // cap at 50 results
+        shown.forEach(function(p) {
+          var meta = [];
+          if (p.birth_date) meta.push('b. ' + p.birth_date);
+          if (p.death_date) meta.push('d. ' + p.death_date);
+          if (p.address) meta.push(p.address);
+          h += '<div class="search-result-item" data-search-person="' + p.id + '">'
+            + '<div class="search-result-name">' + esc(p.name) + '</div>'
+            + (meta.length ? '<div class="search-result-meta">' + esc(meta.join(' · ')) + '</div>' : '')
+            + '</div>';
+        });
+        if (results.length > 50) {
+          h += '<div class="search-no-results">' + (results.length - 50) + ' more results — refine your search</div>';
+        }
+        dropdown.innerHTML = h;
+        dropdown.classList.add('open');
+
+        dropdown.querySelectorAll('[data-search-person]').forEach(function(el) {
+          el.addEventListener('click', function() {
+            selectedPersonId = parseInt(this.dataset.searchPerson);
+            // Switch to pedigree view
+            currentView = 'pedigree';
+            document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+            var pTab = document.querySelector('[data-view="pedigree"]');
+            if (pTab) pTab.classList.add('active');
+            renderTree();
+            renderSidebar();
+            input.value = '';
+            closeDropdown();
+          });
+        });
+      } catch (err) {
+        console.error('Search error:', err);
+      }
+    }, 250); // 250ms debounce
+  });
+
+  // Close on escape or clicking outside
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { input.value = ''; closeDropdown(); input.blur(); }
+  });
+  document.addEventListener('click', function(e) {
+    if (!input.parentNode.contains(e.target)) closeDropdown();
+  });
+}
+
+// ─── Keyboard Shortcuts ──────────────────────────────────────────
+
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', function(e) {
+    var isMod = e.metaKey || e.ctrlKey;
+
+    // Don't trigger shortcuts when typing in inputs
+    var tag = e.target.tagName;
+    var isInput = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+
+    // Escape — close modals
+    if (e.key === 'Escape') {
+      var modal = document.querySelector('.modal-overlay');
+      if (modal) { modal.remove(); return; }
+      // If in edit mode in sidebar, go back to main sidebar
+      var backBtn = getEl('backBtn');
+      if (backBtn) { backBtn.click(); return; }
+    }
+
+    // Cmd/Ctrl + Z — Undo
+    if (isMod && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      performUndo();
+      return;
+    }
+
+    // Cmd/Ctrl + F — Focus search
+    if (isMod && e.key === 'f' && currentTreeId) {
+      e.preventDefault();
+      var searchInput = getEl('searchInput');
+      if (searchInput) searchInput.focus();
+      return;
+    }
+
+    // Skip remaining shortcuts if typing in an input
+    if (isInput) return;
+
+    // Cmd/Ctrl + N — Add person/relative
+    if (isMod && e.key === 'n') {
+      e.preventDefault();
+      if (!currentTreeId) return;
+      var person = personById(selectedPersonId);
+      if (person) showAddRelativeForm(person);
+      else showAddPersonForm();
+      return;
+    }
+
+    // Cmd/Ctrl + E — Edit profile
+    if (isMod && e.key === 'e') {
+      e.preventDefault();
+      if (!currentTreeId) return;
+      var person = personById(selectedPersonId);
+      if (person) showEditForm(person);
+      return;
+    }
+
+    // Cmd/Ctrl + P — Print dropdown
+    if (isMod && e.key === 'p') {
+      e.preventDefault();
+      var printMenuBtn = getEl('printMenuBtn');
+      if (printMenuBtn) printMenuBtn.click();
+      return;
+    }
+
+    // Cmd/Ctrl + D — Duplicate detection
+    if (isMod && e.key === 'd') {
+      e.preventDefault();
+      if (currentTreeId) showDuplicateDetector();
+      return;
+    }
+
+    // Number keys 1-5 for view switching
+    if (!isMod && e.key >= '1' && e.key <= '6' && currentTreeId) {
+      var views = ['pedigree', 'timeline', 'descendants', 'family-group', 'map', 'statistics'];
+      var idx = parseInt(e.key) - 1;
+      if (idx < views.length) {
+        currentView = views[idx];
+        document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+        var tab = document.querySelector('[data-view="' + views[idx] + '"]');
+        if (tab) tab.classList.add('active');
+        renderTree();
+      }
+    }
   });
 }
 
@@ -2270,6 +3512,131 @@ function showExpandedNotes(person, textareaEl) {
 
 // ─── Family Report Generator ─────────────────────────────────────
 
+async function generatePersonReport(personId) {
+  var person = personById(personId);
+  if (!person) return '<html><body><p>Person not found.</p></body></html>';
+
+  var parents = getParentsOf(person);
+  var children = getChildrenOf(person);
+  var siblings = getSiblingsOf(person);
+  var spouses = getSpousesOf(person);
+  var spFams = getSpouseFamilies(person);
+  var events = await window.api.getEvents(personId);
+  var citations = await window.api.getCitations('person', personId);
+  var allSources = await window.api.getSources(currentTreeId);
+  var sourceMap = {};
+  allSources.forEach(function(s) { sourceMap[s.id] = s; });
+
+  var css = 'body { font-family: Georgia, "EB Garamond", serif; font-size: 13px; color: #222; line-height: 1.6; max-width: 700px; margin: 0 auto; padding: 30px; }'
+    + 'h1 { font-size: 24px; margin-bottom: 4px; border-bottom: 2px solid #333; padding-bottom: 8px; }'
+    + 'h2 { font-size: 16px; margin-top: 24px; margin-bottom: 8px; color: #444; border-bottom: 1px solid #ccc; padding-bottom: 4px; }'
+    + 'table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }'
+    + 'th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid #ddd; font-size: 12px; }'
+    + 'th { font-weight: 700; background: #f5f5f5; width: 140px; }'
+    + '.subtitle { font-size: 13px; color: #666; margin-bottom: 20px; }'
+    + '.section-note { font-size: 12px; color: #555; white-space: pre-wrap; margin: 8px 0; }'
+    + '.footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 10px; color: #999; text-align: center; }';
+
+  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(person.name) + ' — Person Report</title>'
+    + '<style>' + css + '</style></head><body>';
+
+  h += '<h1>' + esc(person.name) + '</h1>';
+  h += '<div class="subtitle">' + lifeSpan(person) + '</div>';
+
+  // Vital info table
+  h += '<h2>Vital Information</h2><table>';
+  h += '<tr><th>Full Name</th><td>' + esc(person.name) + '</td></tr>';
+  if (person.sex) h += '<tr><th>Sex</th><td>' + (person.sex === 'M' ? 'Male' : person.sex === 'F' ? 'Female' : person.sex) + '</td></tr>';
+  if (person.birth_date) h += '<tr><th>Birth Date</th><td>' + esc(parseGenealogyDate(person.birth_date).display) + '</td></tr>';
+  if (person.address) h += '<tr><th>Birth Place</th><td>' + esc(person.address) + '</td></tr>';
+  if (person.death_date) h += '<tr><th>Death Date</th><td>' + esc(parseGenealogyDate(person.death_date).display) + '</td></tr>';
+  if (person.cause_of_death) h += '<tr><th>Cause of Death</th><td>' + esc(person.cause_of_death) + '</td></tr>';
+  if (person.burial_location) h += '<tr><th>Burial Location</th><td>' + esc(person.burial_location) + '</td></tr>';
+  if (person.occupation) h += '<tr><th>Occupation</th><td>' + esc(person.occupation) + '</td></tr>';
+  if (person.religion) h += '<tr><th>Religion</th><td>' + esc(person.religion) + '</td></tr>';
+  if (person.is_adopted) h += '<tr><th>Adopted</th><td>Yes</td></tr>';
+  h += '</table>';
+
+  // Parents
+  if (parents.length) {
+    h += '<h2>Parents</h2><table>';
+    parents.forEach(function(p) {
+      var role = p.sex === 'F' ? 'Mother' : 'Father';
+      if (p._pediType === 'step') role = 'Step-' + role;
+      else if (p._pediType === 'adopted') role = 'Adoptive ' + role;
+      else if (p._pediType === 'foster') role = 'Foster ' + role;
+      h += '<tr><th>' + role + '</th><td>' + esc(p.name) + ' (' + lifeSpan(p) + ')</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  // Spouses & marriages
+  if (spouses.length) {
+    h += '<h2>Marriages</h2><table>';
+    spouses.forEach(function(sp) {
+      var fam = spFams.find(function(f) { return f.husband_id === sp.id || f.wife_id === sp.id; });
+      var mInfo = '';
+      if (fam && fam.marriage_date) mInfo += 'married ' + parseGenealogyDate(fam.marriage_date).display;
+      if (fam && fam.marriage_place) mInfo += ' at ' + fam.marriage_place;
+      if (fam && fam.status === 'divorced') mInfo += ' (divorced)';
+      h += '<tr><th>Spouse</th><td>' + esc(sp.name) + ' (' + lifeSpan(sp) + ')' + (mInfo ? '<br/>' + esc(mInfo) : '') + '</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  // Children
+  if (children.length) {
+    h += '<h2>Children</h2><table>';
+    children.forEach(function(c, idx) {
+      h += '<tr><th>' + (idx + 1) + '.</th><td>' + esc(c.name) + ' (' + lifeSpan(c) + ')' + (c.is_adopted ? ' [adopted]' : '') + '</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  // Siblings
+  if (siblings.length) {
+    h += '<h2>Siblings</h2><table>';
+    siblings.forEach(function(s, idx) {
+      h += '<tr><th>' + (idx + 1) + '.</th><td>' + esc(s.name) + ' (' + lifeSpan(s) + ')</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  // Life events
+  if (events && events.length) {
+    h += '<h2>Life Events</h2><table>';
+    h += '<tr><th>Type</th><th style="width:auto">Date</th><th style="width:auto">Place</th><th style="width:auto">Details</th></tr>';
+    events.forEach(function(ev) {
+      h += '<tr><td>' + esc(ev.event_type || '') + '</td>'
+        + '<td>' + (ev.event_date ? esc(parseGenealogyDate(ev.event_date).display) : '') + '</td>'
+        + '<td>' + esc(ev.event_place || '') + '</td>'
+        + '<td>' + esc(ev.description || '') + '</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  // Sources & citations
+  if (citations && citations.length) {
+    h += '<h2>Sources & Citations</h2><table>';
+    citations.forEach(function(c) {
+      var src = sourceMap[c.source_id];
+      h += '<tr><th>' + (src ? esc(src.title) : 'Source #' + c.source_id) + '</th>'
+        + '<td>' + esc(c.field_name || '') + (c.detail ? ' — ' + esc(c.detail) : '') + '</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  // Notes
+  if (person.notes) {
+    h += '<h2>Notes</h2>';
+    h += '<div class="section-note">' + esc(person.notes) + '</div>';
+  }
+
+  h += '<div class="footer">Generated by Family Tree on ' + new Date().toLocaleDateString() + '</div>';
+  h += '</body></html>';
+  return h;
+}
+
 async function generateFamilyReport() {
   var treeName = getEl('treeTitle') ? getEl('treeTitle').textContent : 'Family Tree';
   var today = new Date().toLocaleDateString();
@@ -2461,6 +3828,80 @@ async function showTrashView() {
         showTrashView();
       }
     });
+  });
+}
+
+// ─── Auto-Update ────────────────────────────────────────────────────
+
+async function checkForAppUpdate() {
+  try {
+    var result = await window.api.checkForUpdate();
+    if (result.hasUpdate) {
+      showUpdateBanner(result.latestVersion, result.currentVersion);
+    } else {
+      console.log('App is up to date (v' + result.currentVersion + ')');
+    }
+  } catch(err) {
+    console.log('Update check skipped:', err.message);
+  }
+}
+
+function showUpdateBanner(newVersion, currentVersion) {
+  // Don't show if already showing
+  if (document.getElementById('updateBanner')) return;
+
+  var banner = document.createElement('div');
+  banner.id = 'updateBanner';
+  banner.className = 'update-banner';
+  banner.innerHTML = '<div class="update-banner-content">'
+    + '<span class="material-symbols-outlined" style="font-size:18px;color:var(--primary)">system_update</span>'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-weight:600;font-size:13px">Update available</div>'
+    + '<div style="font-size:11px;color:var(--secondary)">Version ' + esc(newVersion) + ' is ready (you have v' + esc(currentVersion) + ')</div>'
+    + '</div>'
+    + '<button class="update-btn" id="updateNowBtn">Update Now</button>'
+    + '<button class="update-dismiss-btn" id="updateDismissBtn" title="Dismiss">'
+    + '<span class="material-symbols-outlined" style="font-size:16px">close</span></button>'
+    + '</div>';
+
+  document.body.appendChild(banner);
+
+  // Animate in
+  requestAnimationFrame(function() {
+    banner.classList.add('visible');
+  });
+
+  document.getElementById('updateDismissBtn').addEventListener('click', function() {
+    banner.classList.remove('visible');
+    setTimeout(function() { banner.remove(); }, 300);
+  });
+
+  document.getElementById('updateNowBtn').addEventListener('click', async function() {
+    var btn = document.getElementById('updateNowBtn');
+    btn.disabled = true;
+    btn.textContent = 'Downloading...';
+
+    try {
+      var result = await window.api.applyUpdate();
+      if (result.success) {
+        btn.textContent = 'Restarting...';
+        banner.querySelector('.update-banner-content div[style*="font-size:11px"]').textContent =
+          result.filesUpdated + ' files updated. Restarting the app...';
+        setTimeout(async function() {
+          await window.api.restartApp();
+        }, 1000);
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+        banner.querySelector('.update-banner-content div[style*="font-size:11px"]').textContent =
+          'Update failed: ' + (result.error || 'Unknown error');
+      }
+    } catch(err) {
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+      banner.querySelector('.update-banner-content div[style*="font-size:11px"]').textContent =
+        'Error: ' + err.message;
+    }
   });
 }
 

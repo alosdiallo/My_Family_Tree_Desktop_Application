@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('api', {
   getFamilies:           function(treeId)         { return ipcRenderer.invoke('get-families', treeId); },
   addFamily:             function(treeId, data)   { return ipcRenderer.invoke('add-family', treeId, data); },
   updateFamily:          function(id, fields)     { return ipcRenderer.invoke('update-family', id, fields); },
+  moveChild:             function(childId, from, to) { return ipcRenderer.invoke('move-child', childId, from, to); },
+  addChildToFamily:      function(childId, famId, pH, pW) { return ipcRenderer.invoke('add-child-to-family', childId, famId, pH, pW); },
+  updateChildPedi:       function(childId, famId, pH, pW) { return ipcRenderer.invoke('update-child-pedi', childId, famId, pH, pW); },
 
   // Events
   getEvents:             function(personId)       { return ipcRenderer.invoke('get-events', personId); },
@@ -48,6 +51,12 @@ contextBridge.exposeInMainWorld('api', {
   updateAttachment:      function(id, fields)     { return ipcRenderer.invoke('update-attachment', id, fields); },
   removeAttachment:      function(id)             { return ipcRenderer.invoke('remove-attachment', id); },
 
+  // Research Log
+  getResearchLog:        function(personId)       { return ipcRenderer.invoke('get-research-log', personId); },
+  addResearchLog:        function(pid, tid, data)  { return ipcRenderer.invoke('add-research-log', pid, tid, data); },
+  updateResearchLog:     function(id, fields)     { return ipcRenderer.invoke('update-research-log', id, fields); },
+  removeResearchLog:     function(id)             { return ipcRenderer.invoke('remove-research-log', id); },
+
   // GEDCOM
   importGedcom:          function(treeId)         { return ipcRenderer.invoke('import-gedcom', treeId); },
   exportGedcom:          function(treeId)         { return ipcRenderer.invoke('export-gedcom', treeId); },
@@ -61,5 +70,15 @@ contextBridge.exposeInMainWorld('api', {
   pickPhoto:             function(personId)       { return ipcRenderer.invoke('pick-photo', personId); },
   printToPdf:            function()              { return ipcRenderer.invoke('print-to-pdf'); },
   printToPrinter:        function()              { return ipcRenderer.invoke('print-to-printer'); },
-  saveReport:            function(html)           { return ipcRenderer.invoke('save-report', html); }
+  printReport:           function(html)           { return ipcRenderer.invoke('print-report', html); },
+  saveReport:            function(html)           { return ipcRenderer.invoke('save-report', html); },
+
+  // Bug Reporting
+  getSystemInfo:         function()              { return ipcRenderer.invoke('get-system-info'); },
+  submitBugReport:       function(data)           { return ipcRenderer.invoke('submit-bug-report', data); },
+
+  // Auto-Update
+  checkForUpdate:        function()              { return ipcRenderer.invoke('check-for-update'); },
+  applyUpdate:           function()              { return ipcRenderer.invoke('apply-update'); },
+  restartApp:            function()              { return ipcRenderer.invoke('restart-app'); }
 });

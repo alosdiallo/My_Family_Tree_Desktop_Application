@@ -210,7 +210,7 @@ var CITY_COUNTRY = {
   "auckland": "new zealand", "wellington": "new zealand",
   "toronto": "canada", "montreal": "canada", "vancouver": "canada", "ottawa": "canada", "calgary": "canada",
   "mexico city": "mexico", "guadalajara": "mexico", "monterrey": "mexico",
-  "sao paulo": "brazil", "rio de janeiro": "brazil", "rio": "brazil", "brasilia": "brazil",
+  "sao paulo": "brazil", "rio de janeiro": "brazil", "brasilia": "brazil",
   "buenos aires": "argentina",
   "bogota": "colombia", "medellin": "colombia",
   "lima": "peru", "santiago": "chile",
@@ -245,36 +245,44 @@ function resolveCountry(placeStr) {
   // Direct country match
   if (COUNTRY_COORDS[text]) return COUNTRY_COORDS[text];
 
-  // Check each word/phrase against country names
+  // Check each comma-separated part against country names
   var parts = text.split(/[,]+/).map(function(s) { return s.trim(); });
   // Check from right to left (country is usually last)
   for (var i = parts.length - 1; i >= 0; i--) {
     var part = parts[i].toLowerCase();
     if (COUNTRY_COORDS[part]) return COUNTRY_COORDS[part];
 
-    // Check US places
+    // Check US places — use exact match or word-boundary match
     for (var j = 0; j < US_PLACES.length; j++) {
-      if (part === US_PLACES[j] || part.indexOf(US_PLACES[j]) !== -1) {
+      if (part === US_PLACES[j] || wordMatch(part, US_PLACES[j])) {
         return COUNTRY_COORDS["united states"];
       }
     }
 
-    // Check city mappings
-    for (var city in CITY_COUNTRY) {
-      if (part === city || part.indexOf(city) !== -1) {
-        var countryKey = CITY_COUNTRY[city];
-        if (COUNTRY_COORDS[countryKey]) return COUNTRY_COORDS[countryKey];
-      }
+    // Check city mappings — exact match on part only
+    if (CITY_COUNTRY[part]) {
+      var countryKey = CITY_COUNTRY[part];
+      if (COUNTRY_COORDS[countryKey]) return COUNTRY_COORDS[countryKey];
     }
   }
 
-  // Try the whole string against cities
+  // Try full text exact match against cities (no substring matching)
   for (var city in CITY_COUNTRY) {
-    if (text.indexOf(city) !== -1) {
+    if (wordMatch(text, city)) {
       var countryKey = CITY_COUNTRY[city];
       if (COUNTRY_COORDS[countryKey]) return COUNTRY_COORDS[countryKey];
     }
   }
 
   return null;
+}
+
+// Match a city/place name as a whole word within text (not as a substring of another word)
+function wordMatch(text, term) {
+  var idx = text.indexOf(term);
+  if (idx === -1) return false;
+  var before = idx > 0 ? text.charAt(idx - 1) : ' ';
+  var after = idx + term.length < text.length ? text.charAt(idx + term.length) : ' ';
+  // Must be bounded by non-letter characters
+  return !/[a-z]/.test(before) && !/[a-z]/.test(after);
 }

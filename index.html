@@ -7,7 +7,7 @@
   <title>Family Tree</title>
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Pinyon+Script&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
@@ -48,15 +48,39 @@
         <span id="treeTitle" class="top-tree-name">Family Tree</span>
       </div>
       <div class="top-bar-right">
+        <button class="header-icon-btn" id="bugReportBtn" title="Report a problem">
+          <span class="material-symbols-outlined">bug_report</span>
+        </button>
+        <button class="header-icon-btn" id="helpBtn" title="Help & shortcuts">
+          <span class="material-symbols-outlined">help_outline</span>
+        </button>
         <button class="theme-toggle" id="treeThemeToggle" title="Toggle dark mode">
           <span class="material-symbols-outlined">dark_mode</span>
         </button>
-        <button id="reportBtn" class="header-btn">
-          <span class="material-symbols-outlined">summarize</span> Family Report
-        </button>
-        <button id="printBtn" class="header-btn">
-          <span class="material-symbols-outlined">picture_as_pdf</span> Save PDF
-        </button>
+        <div class="header-dropdown-wrap" id="printDropdownWrap">
+          <button id="printMenuBtn" class="header-btn">
+            <span class="material-symbols-outlined">print</span> Print
+            <span class="material-symbols-outlined" style="font-size:14px;margin-left:2px">expand_more</span>
+          </button>
+          <div class="header-dropdown" id="printDropdown">
+            <button class="header-dropdown-item" id="printViewBtn">
+              <span class="material-symbols-outlined">monitor</span> Print Current View
+            </button>
+            <button class="header-dropdown-item" id="printPersonBtn">
+              <span class="material-symbols-outlined">person</span> Print Person Report
+            </button>
+            <button class="header-dropdown-item" id="printReportBtn">
+              <span class="material-symbols-outlined">summarize</span> Print Family Report
+            </button>
+            <div class="header-dropdown-divider"></div>
+            <button class="header-dropdown-item" id="printBtn">
+              <span class="material-symbols-outlined">picture_as_pdf</span> Save View as PDF
+            </button>
+            <button class="header-dropdown-item" id="reportBtn">
+              <span class="material-symbols-outlined">description</span> Save Family Report
+            </button>
+          </div>
+        </div>
         <button id="exportBtn" class="header-btn">
           <span class="material-symbols-outlined">upload_file</span> Export GEDCOM
         </button>
@@ -69,8 +93,9 @@
     <!-- View Tabs -->
     <div class="view-tabs-bar">
       <button class="view-tab active" data-view="pedigree">Pedigree</button>
+      <button class="view-tab" data-view="timeline">Timeline</button>
       <button class="view-tab" data-view="descendants">Descendants</button>
-      <button class="view-tab" data-view="family-group">Family Group Sheet</button>
+      <button class="view-tab" data-view="family-group">Family Group</button>
       <button class="view-tab" data-view="map">Map</button>
       <button class="view-tab" data-view="statistics">Statistics</button>
       <div style="flex:1"></div>
@@ -86,7 +111,11 @@
     </main>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar"></aside>
+    <aside id="sidebar" class="sidebar">
+    </aside>
+    <button id="sidebarToggle" class="sidebar-toggle" title="Toggle sidebar">
+      <span class="material-symbols-outlined">chevron_right</span>
+    </button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
