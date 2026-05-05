@@ -1,14 +1,60 @@
 {
   "name": "family-tree",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "main": "main.js",
+  "author": "Alos Diallo",
+  "description": "Family Tree - A genealogy desktop application",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "build-dmg": "electron-builder --mac dmg"
   },
   "devDependencies": {
-    "electron": "^41.1.0"
+    "electron": "^41.1.0",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "sql.js": "^1.11.0"
+  },
+  "build": {
+    "appId": "com.alosdiallo.family-tree",
+    "productName": "Family Tree",
+    "mac": {
+      "category": "public.app-category.lifestyle",
+      "icon": "logo.png",
+      "target": [
+        "dmg"
+      ],
+      "identity": null
+    },
+    "dmg": {
+      "title": "Family Tree",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "files": [
+      "main.js",
+      "renderer.js",
+      "preload.js",
+      "index.html",
+      "styles.css",
+      "date-parser.js",
+      "country-data.js",
+      "world-map.js",
+      "logo.png",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "asar": false
   }
 }
