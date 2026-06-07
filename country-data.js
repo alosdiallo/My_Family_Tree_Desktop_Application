@@ -184,6 +184,42 @@ var US_PLACES = [
   "fort worth","jacksonville","tampa","orlando","raleigh","durham","norfolk"
 ];
 
+// Canadian provinces and territories mapped to Canada
+var CANADA_PLACES = [
+  "ontario","quebec","québec","nova scotia","new brunswick","manitoba",
+  "british columbia","prince edward island","saskatchewan","alberta",
+  "newfoundland","newfoundland and labrador","northwest territories",
+  "nunavut","yukon","labrador",
+  // Common county/region names in Canadian records
+  "colchester county","york co.","york county","kings county","hants county",
+  "cumberland county","pictou county","antigonish county","cape breton",
+  "annapolis county","digby county","lunenburg county","queens county",
+  "shelburne county","guysborough county","inverness county","richmond county",
+  "victoria county"
+];
+
+// Swedish regions (län) found in the GEDCOM
+var SWEDEN_PLACES = [
+  "vasternorrlands lan","varmlands lan","vastmanlands lan","stockholms lan",
+  "kronobergs lan","jonkopings lan","kalmar lan","ostergotlands lan",
+  "sodermanlands lan","gotlands lan","blekinge lan","hallands lan",
+  "vastra gotalands lan","orebro lan","dalarnas lan","gavleborgs lan",
+  "vasternorrlands lan","jamtlands lan","vasterbottens lan","norrbottens lan",
+  "skane lan","uppsala lan"
+];
+
+// English/UK counties and regions
+var UK_PLACES = [
+  "lancashire","yorkshire","devon","cornwall","kent","surrey","essex",
+  "sussex","norfolk","suffolk","dorset","somerset","wiltshire","hampshire",
+  "gloucestershire","oxfordshire","warwickshire","staffordshire",
+  "nottinghamshire","derbyshire","lincolnshire","cambridgeshire",
+  "hertfordshire","bedfordshire","buckinghamshire","northamptonshire",
+  "leicestershire","rutland","shropshire","herefordshire","worcestershire",
+  "cheshire","merseyside","tyne and wear","county durham","cumbria",
+  "northumberland"
+];
+
 // Common city-to-country mappings for non-US places
 var CITY_COUNTRY = {
   "paris": "france", "lyon": "france", "marseille": "france", "toulouse": "france",
@@ -233,7 +269,7 @@ var CITY_COUNTRY = {
   "riyadh": "saudi arabia", "jeddah": "saudi arabia", "mecca": "saudi arabia",
   "tehran": "iran", "baghdad": "iraq", "beirut": "lebanon", "damascus": "syria",
   "jerusalem": "israel", "tel aviv": "israel",
-  "havana": "cuba", "kingston": "jamaica", "port-au-prince": "haiti",
+  "havana": "cuba", "port-au-prince": "haiti",
   "santo domingo": "dominican republic"
 };
 
@@ -245,28 +281,62 @@ function resolveCountry(placeStr) {
   // Direct country match
   if (COUNTRY_COORDS[text]) return COUNTRY_COORDS[text];
 
-  // Check each comma-separated part against country names
+  // Split into comma-separated parts, check from right to left
   var parts = text.split(/[,]+/).map(function(s) { return s.trim(); });
-  // Check from right to left (country is usually last)
+
+  // PASS 1: Check each part for direct country name or province/region match
+  // This must happen BEFORE city matching to prevent "Kingston, Ontario" → Jamaica
   for (var i = parts.length - 1; i >= 0; i--) {
-    var part = parts[i].toLowerCase();
+    var part = parts[i];
+    if (!part) continue;
+
+    // Direct country name
     if (COUNTRY_COORDS[part]) return COUNTRY_COORDS[part];
 
-    // Check US places — use exact match or word-boundary match
+    // Canadian provinces
+    for (var j = 0; j < CANADA_PLACES.length; j++) {
+      if (part === CANADA_PLACES[j] || wordMatch(part, CANADA_PLACES[j])) {
+        return COUNTRY_COORDS["canada"];
+      }
+    }
+
+    // US states/cities
     for (var j = 0; j < US_PLACES.length; j++) {
       if (part === US_PLACES[j] || wordMatch(part, US_PLACES[j])) {
         return COUNTRY_COORDS["united states"];
       }
     }
 
-    // Check city mappings — exact match on part only
+    // Swedish regions
+    if (typeof SWEDEN_PLACES !== 'undefined') {
+      for (var j = 0; j < SWEDEN_PLACES.length; j++) {
+        if (part === SWEDEN_PLACES[j] || wordMatch(part, SWEDEN_PLACES[j])) {
+          return COUNTRY_COORDS["sweden"];
+        }
+      }
+    }
+
+    // UK regions
+    if (typeof UK_PLACES !== 'undefined') {
+      for (var j = 0; j < UK_PLACES.length; j++) {
+        if (part === UK_PLACES[j] || wordMatch(part, UK_PLACES[j])) {
+          return COUNTRY_COORDS["united kingdom"];
+        }
+      }
+    }
+  }
+
+  // PASS 2: City-to-country mapping (only if no province/country matched)
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var part = parts[i];
+    if (!part) continue;
     if (CITY_COUNTRY[part]) {
       var countryKey = CITY_COUNTRY[part];
       if (COUNTRY_COORDS[countryKey]) return COUNTRY_COORDS[countryKey];
     }
   }
 
-  // Try full text exact match against cities (no substring matching)
+  // PASS 3: Try word-boundary city match on full text (last resort)
   for (var city in CITY_COUNTRY) {
     if (wordMatch(text, city)) {
       var countryKey = CITY_COUNTRY[city];
@@ -283,6 +353,5 @@ function wordMatch(text, term) {
   if (idx === -1) return false;
   var before = idx > 0 ? text.charAt(idx - 1) : ' ';
   var after = idx + term.length < text.length ? text.charAt(idx + term.length) : ' ';
-  // Must be bounded by non-letter characters
   return !/[a-z]/.test(before) && !/[a-z]/.test(after);
 }

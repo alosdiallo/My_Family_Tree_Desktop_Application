@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   restorePerson:         function(id)             { return ipcRenderer.invoke('restore-person', id); },
   permanentlyDeletePerson: function(id)           { return ipcRenderer.invoke('permanently-delete-person', id); },
   searchPeople:          function(treeId, query)  { return ipcRenderer.invoke('search-people', treeId, query); },
+  createBackup:          function(reason)         { return ipcRenderer.invoke('create-backup', reason); },
 
   // Families
   getFamilies:           function(treeId)         { return ipcRenderer.invoke('get-families', treeId); },

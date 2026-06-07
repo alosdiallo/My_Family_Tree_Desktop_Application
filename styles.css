@@ -627,6 +627,9 @@ body {
   min-height: 100%;
   display: flex;
   align-items: flex-start;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -806,8 +809,16 @@ body {
 
 /* ─── Tree Layout ─────────────────────────────────────────────────── */
 
-.pedigree-row { display: flex; align-items: flex-start; gap: 28px; position: relative; overflow-x: auto; padding-bottom: 12px; }
-.pedigree-col { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; flex-shrink: 0; }
+.pedigree-scroll-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.pedigree-row { display: flex; align-items: flex-start; gap: 28px; position: relative; padding-bottom: 16px; min-width: min-content; }
+.pedigree-col { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; flex-shrink: 0; min-width: 200px; }
 .ribbon-h { width: 28px; height: 3px; background: var(--outline); border-radius: 999px; margin-top: 30px; flex-shrink: 0; }
 .section-divider { border-top: 1px solid var(--outline); padding-top: 12px; margin-top: 8px; }
 .section-label { font-size: 11px; color: var(--secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }

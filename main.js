@@ -700,6 +700,11 @@ ipcMain.handle('remove-research-log', function(ev, id) {
 // SEARCH
 // ═══════════════════════════════════════════════════════════════════
 
+ipcMain.handle('create-backup', function(ev, reason) {
+  createBackup(reason || 'manual');
+  return { success: true };
+});
+
 ipcMain.handle('search-people', function(ev, treeId, query) {
   var q = '%' + query + '%';
   // Search across person fields AND events (places, descriptions)

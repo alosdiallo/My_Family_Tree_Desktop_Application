@@ -301,6 +301,108 @@ async function showBugReportModal() {
   getEl('bugTitle').focus();
 }
 
+// ─── Maintenance Modal ──────────────────────────────────────────
+
+function showMaintenanceModal() {
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-box';
+  modal.style.maxWidth = '460px';
+
+  modal.innerHTML = '<div class="modal-title">'
+    + '<span class="material-symbols-outlined" style="font-size:20px;color:var(--primary);vertical-align:middle;margin-right:6px">settings</span>'
+    + 'Database Maintenance</div>'
+    + '<div style="font-size:12px;color:var(--secondary);margin-bottom:16px">'
+    + 'Tools to fix and update your family tree data without re-importing.</div>'
+    + '<div style="display:flex;flex-direction:column;gap:10px">'
+    + '<button class="sidebar-btn secondary" id="maintRefreshCountries">'
+    + '<span class="material-symbols-outlined">public</span> Refresh Country Assignments'
+    + '</button>'
+    + '<div style="font-size:11px;color:var(--secondary);margin-top:-6px;margin-bottom:4px">'
+    + 'Re-scans all birth places and updates country assignments using the latest matching rules. '
+    + 'Fixes issues like Ontario being mapped to Jamaica.</div>'
+    + '<button class="sidebar-btn secondary" id="maintBackupNow">'
+    + '<span class="material-symbols-outlined">backup</span> Create Backup Now'
+    + '</button>'
+    + '<div style="font-size:11px;color:var(--secondary);margin-top:-6px;margin-bottom:4px">'
+    + 'Creates a manual database backup you can restore from later.</div>'
+    + '</div>'
+    + '<div id="maintStatus" style="margin-top:12px;font-size:12px;text-align:center"></div>'
+    + '<div class="modal-actions" style="margin-top:16px">'
+    + '<button class="modal-btn cancel" id="maintCloseBtn">Close</button>'
+    + '</div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  getEl('maintCloseBtn').addEventListener('click', function() { overlay.remove(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  getEl('maintRefreshCountries').addEventListener('click', async function() {
+    var btn = this;
+    var status = getEl('maintStatus');
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    status.style.color = 'var(--secondary)';
+    status.textContent = 'Re-resolving countries for all people...';
+
+    try {
+      var updated = await reResolveCountries();
+      status.style.color = 'var(--primary)';
+      status.textContent = 'Done! Updated ' + updated + ' records.';
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined">public</span> Refresh Country Assignments';
+      if (updated > 0) await refreshData();
+    } catch(err) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Error: ' + err.message;
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined">public</span> Refresh Country Assignments';
+    }
+  });
+
+  getEl('maintBackupNow').addEventListener('click', async function() {
+    var status = getEl('maintStatus');
+    try {
+      await window.api.createBackup('manual');
+      status.style.color = 'var(--primary)';
+      status.textContent = 'Backup created successfully.';
+    } catch(err) {
+      status.style.color = 'var(--danger)';
+      status.textContent = 'Backup failed: ' + err.message;
+    }
+  });
+}
+
+async function reResolveCountries() {
+  var updated = 0;
+  for (var i = 0; i < allPeople.length; i++) {
+    var p = allPeople[i];
+    var newCountry = null;
+
+    // Try to resolve from address (birth place), then from existing country field
+    var resolved = resolveCountry(p.address);
+    if (resolved) {
+      newCountry = resolved.name;
+    } else if (p.country) {
+      // Keep existing if address doesn't resolve
+      continue;
+    }
+
+    // Only update if different from current
+    if (newCountry && newCountry !== p.country) {
+      await window.api.updatePerson(p.id, { country: newCountry });
+      updated++;
+    } else if (!newCountry && !p.country) {
+      // No country info at all, skip
+      continue;
+    }
+  }
+  return updated;
+}
+
 function kbdRow(key, desc) {
   return '<div style="font-family:var(--font-mono,monospace);font-size:12px;background:var(--surface-low);padding:2px 8px;border-radius:4px;text-align:center;color:var(--on-surface)">' + key + '</div>'
     + '<div style="color:var(--secondary)">' + desc + '</div>';
@@ -318,6 +420,9 @@ function setupHeaderButtons() {
   if (backBtn) backBtn.addEventListener('click', () => loadHomeScreen());
   if (helpBtn) helpBtn.addEventListener('click', showHelpModal);
   if (bugReportBtn) bugReportBtn.addEventListener('click', showBugReportModal);
+
+  var settingsBtn = getEl('settingsBtn');
+  if (settingsBtn) settingsBtn.addEventListener('click', showMaintenanceModal);
 
   if (importBtn) importBtn.addEventListener('click', async () => {
     if (!currentTreeId) return;
@@ -1089,7 +1194,7 @@ function renderPedigree(tc) {
   var gpMap = {};
   parents.forEach(function(p) { gpMap[p.id] = getParentsOf(p); });
 
-  var h = '<div class="pedigree-row">';
+  var h = '<div class="pedigree-scroll-wrap"><div class="pedigree-row">';
 
   // Grandparents
   var allGP = [];
@@ -1173,11 +1278,9 @@ function renderPedigree(tc) {
     h += '</div>';
   }
 
-  h += '</div>';
+  h += '</div></div>'; // close pedigree-row and pedigree-scroll-wrap
   tc.innerHTML = h;
 }
-
-// ─── Descendants View ────────────────────────────────────────────────
 
 function renderDescendants(tc) {
   var root = personById(selectedPersonId);
@@ -2033,6 +2136,7 @@ function renderSidebar() {
     + (person.photo_path ? '<button class="sidebar-btn ghost" id="removePhotoBtn" style="color:var(--danger)"><span class="material-symbols-outlined">no_photography</span> Remove Photo</button>' : '')
     + '<button class="sidebar-btn primary" id="addRelativeBtn"><span class="material-symbols-outlined">add_circle</span> Add Relative</button>'
     + '<button class="sidebar-btn secondary" id="editProfileBtn"><span class="material-symbols-outlined">edit</span> Edit Profile</button>'
+    + '<button class="sidebar-btn ghost" id="printPersonSidebarBtn"><span class="material-symbols-outlined">print</span> Print Person Report</button>'
     + '<button class="sidebar-btn danger" id="deletePersonBtn"><span class="material-symbols-outlined">delete</span> Delete Person</button>'
     + '<button class="sidebar-btn ghost" id="trashBtn" style="margin-top:8px"><span class="material-symbols-outlined">restore_from_trash</span> Recently Deleted</button>'
     + '<button class="sidebar-btn ghost" id="relCalcBtn" style="margin-top:0"><span class="material-symbols-outlined">group</span> Find Relationship</button>'
@@ -2055,6 +2159,12 @@ function renderSidebar() {
   }
   getEl('addRelativeBtn').addEventListener('click', function() { showAddRelativeForm(person); });
   getEl('editProfileBtn').addEventListener('click', function() { showEditForm(person); });
+  getEl('printPersonSidebarBtn').addEventListener('click', async function() {
+    try {
+      var html = await generatePersonReport(person.id);
+      await window.api.printReport(html);
+    } catch (err) { console.error(err); alert('Print failed.'); }
+  });
   getEl('deletePersonBtn').addEventListener('click', function() { deletePerson(person); });
   getEl('trashBtn').addEventListener('click', function() { showTrashView(); });
   getEl('relCalcBtn').addEventListener('click', function() { showRelationshipCalc(person); });
@@ -2201,6 +2311,9 @@ function showEditForm(person) {
     + '<div class="form-group"><label class="form-label">Notes <button type="button" id="expandNotesBtn" style="float:right;background:none;border:none;color:var(--primary);font-size:11px;font-weight:700;cursor:pointer">Expand</button></label><textarea id="editNotes" class="form-input" style="min-height:80px;resize:vertical" placeholder="Family stories, memories, context...">' + esc(person.notes || '') + '</textarea></div>'
     + '<button class="sidebar-btn primary" id="saveEditBtn"><span class="material-symbols-outlined">save</span> Save Changes</button>'
     + '<div style="margin-top:20px;border-top:1px solid var(--outline);padding-top:16px">'
+    + '<div id="relationshipsSection"></div>'
+    + '</div>'
+    + '<div style="margin-top:16px;border-top:1px solid var(--outline);padding-top:16px">'
     + '<div id="eventsSection"></div>'
     + '</div>'
     + '<div style="margin-top:16px;border-top:1px solid var(--outline);padding-top:16px">'
@@ -2259,10 +2372,116 @@ function showEditForm(person) {
     }
   });
 
-  // Load events, attachments, and sources
+  // Load relationships, events, attachments, and sources
+  loadRelationshipsSection(person);
   loadEventsSection(person);
   loadAttachmentsSection(person);
   loadSourcesSection(person);
+}
+
+function loadRelationshipsSection(person) {
+  var section = getEl('relationshipsSection');
+  if (!section) return;
+
+  var h = '<div class="meta-label" style="margin:0 0 12px 0">Relationships</div>';
+
+  // --- Parents ---
+  var parentFamilies = getAllParentFamiliesOf(person);
+  if (parentFamilies.length > 0) {
+    h += '<div style="font-size:12px;font-weight:700;color:var(--secondary);margin-bottom:6px">PARENTS</div>';
+    parentFamilies.forEach(function(fam) {
+      var pedi = (fam.childPedi && fam.childPedi[person.id]) || {};
+      if (fam.husband_id) {
+        var father = personById(fam.husband_id);
+        if (father) {
+          h += '<div class="rel-edit-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+            + '<div style="flex:1;min-width:0;font-size:13px">' + esc(father.name) + ' <span style="color:var(--secondary);font-size:11px">(Father)</span></div>'
+            + '<select class="form-select rel-pedi-select" data-rel-fam="' + fam.id + '" data-rel-child="' + person.id + '" data-rel-role="husb" style="width:auto;font-size:11px;padding:3px 6px">'
+            + '<option value="birth"' + ((pedi.husb || 'birth') === 'birth' ? ' selected' : '') + '>Biological</option>'
+            + '<option value="step"' + (pedi.husb === 'step' ? ' selected' : '') + '>Step</option>'
+            + '<option value="adopted"' + (pedi.husb === 'adopted' ? ' selected' : '') + '>Adoptive</option>'
+            + '<option value="foster"' + (pedi.husb === 'foster' ? ' selected' : '') + '>Foster</option>'
+            + '</select></div>';
+        }
+      }
+      if (fam.wife_id) {
+        var mother = personById(fam.wife_id);
+        if (mother) {
+          h += '<div class="rel-edit-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+            + '<div style="flex:1;min-width:0;font-size:13px">' + esc(mother.name) + ' <span style="color:var(--secondary);font-size:11px">(Mother)</span></div>'
+            + '<select class="form-select rel-pedi-select" data-rel-fam="' + fam.id + '" data-rel-child="' + person.id + '" data-rel-role="wife" style="width:auto;font-size:11px;padding:3px 6px">'
+            + '<option value="birth"' + ((pedi.wife || 'birth') === 'birth' ? ' selected' : '') + '>Biological</option>'
+            + '<option value="step"' + (pedi.wife === 'step' ? ' selected' : '') + '>Step</option>'
+            + '<option value="adopted"' + (pedi.wife === 'adopted' ? ' selected' : '') + '>Adoptive</option>'
+            + '<option value="foster"' + (pedi.wife === 'foster' ? ' selected' : '') + '>Foster</option>'
+            + '</select></div>';
+        }
+      }
+    });
+  }
+
+  // --- Children ---
+  var spouseFams = getSpouseFamilies(person);
+  var hasChildren = false;
+  spouseFams.forEach(function(fam) {
+    if ((fam.childIds || []).length > 0) hasChildren = true;
+  });
+
+  if (hasChildren) {
+    h += '<div style="font-size:12px;font-weight:700;color:var(--secondary);margin-top:12px;margin-bottom:6px">CHILDREN</div>';
+    spouseFams.forEach(function(fam) {
+      (fam.childIds || []).forEach(function(cid) {
+        var child = personById(cid);
+        if (!child) return;
+        var pedi = (fam.childPedi && fam.childPedi[cid]) || {};
+        // Figure out which role this person plays in the family
+        var role = fam.husband_id === person.id ? 'husb' : 'wife';
+        var currentPedi = role === 'husb' ? (pedi.husb || 'birth') : (pedi.wife || 'birth');
+
+        h += '<div class="rel-edit-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+          + '<div style="flex:1;min-width:0;font-size:13px">' + esc(child.name) + '</div>'
+          + '<select class="form-select rel-pedi-select" data-rel-fam="' + fam.id + '" data-rel-child="' + cid + '" data-rel-role="' + role + '" style="width:auto;font-size:11px;padding:3px 6px">'
+          + '<option value="birth"' + (currentPedi === 'birth' ? ' selected' : '') + '>Biological</option>'
+          + '<option value="step"' + (currentPedi === 'step' ? ' selected' : '') + '>Step</option>'
+          + '<option value="adopted"' + (currentPedi === 'adopted' ? ' selected' : '') + '>Adoptive</option>'
+          + '<option value="foster"' + (currentPedi === 'foster' ? ' selected' : '') + '>Foster</option>'
+          + '</select></div>';
+      });
+    });
+  }
+
+  if (parentFamilies.length === 0 && !hasChildren) {
+    h += '<div style="font-size:12px;color:var(--secondary)">No parent or child relationships to edit.</div>';
+  }
+
+  section.innerHTML = h;
+
+  // Bind change events on all pedi dropdowns
+  section.querySelectorAll('.rel-pedi-select').forEach(function(sel) {
+    sel.addEventListener('change', async function() {
+      var famId = parseInt(this.dataset.relFam);
+      var childId = parseInt(this.dataset.relChild);
+      var role = this.dataset.relRole; // 'husb' or 'wife'
+      var newVal = this.value;
+
+      // Get existing pedi for the other parent in this family
+      var fam = allFamilies.find(function(f) { return f.id === famId; });
+      var existingPedi = (fam && fam.childPedi && fam.childPedi[childId]) || {};
+      var pH = role === 'husb' ? newVal : (existingPedi.husb || null);
+      var pW = role === 'wife' ? newVal : (existingPedi.wife || null);
+
+      try {
+        await window.api.updateChildPedi(childId, famId, pH, pW);
+        await refreshData();
+        // Re-render to update badges
+        this.style.outline = '2px solid var(--primary)';
+        setTimeout(function() { sel.style.outline = ''; }, 600);
+      } catch(err) {
+        console.error('Failed to update relationship:', err);
+        alert('Failed to save relationship change.');
+      }
+    });
+  });
 }
 
 function setupDateHint(inputId, hintId) {
