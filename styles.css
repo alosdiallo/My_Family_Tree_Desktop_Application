@@ -832,6 +832,34 @@ body {
 .desc-card.depth-0 { border-left-color: var(--primary); }
 .desc-card.depth-1 { border-left-color: var(--secondary); }
 
+.desc-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: var(--surface-low);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.desc-control-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface-white);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.desc-control-btn:hover { background: var(--surface-high); }
+
 /* ─── Family Group Sheet ──────────────────────────────────────────── */
 
 .fg-section { background: var(--surface-white); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--outline); overflow: hidden; margin-bottom: 20px; }

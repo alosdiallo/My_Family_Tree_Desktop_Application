@@ -1116,6 +1116,7 @@ function renderTree() {
   }
 
   if (currentView === 'pedigree') renderPedigree(tc);
+  else if (currentView === 'ancestors') renderAncestors(tc);
   else if (currentView === 'descendants') renderDescendants(tc);
   else if (currentView === 'family-group') renderFamilyGroup(tc);
   else if (currentView === 'map') { renderMapView(tc); return; }
@@ -1178,9 +1179,38 @@ function renderTree() {
       renderSidebar();
     });
   });
-}
 
-// ─── Pedigree View ───────────────────────────────────────────────────
+  // Ancestors view controls
+  var ancestorGenSel = getEl('ancestorGenLimit');
+  if (ancestorGenSel) {
+    ancestorGenSel.addEventListener('change', function() {
+      ancestorMaxGen = parseInt(this.value);
+      renderTree();
+    });
+  }
+  var ahnBtn = getEl('printAhnentafelBtn');
+  if (ahnBtn) {
+    ahnBtn.addEventListener('click', function() {
+      printAhnentafel(selectedPersonId);
+    });
+  }
+
+  // Descendants view controls
+  var descGenSel = getEl('descGenLimit');
+  if (descGenSel) {
+    descGenSel.addEventListener('change', function() {
+      descMaxGen = parseInt(this.value);
+      renderTree();
+    });
+  }
+  var descRevChk = getEl('descReverseChk');
+  if (descRevChk) {
+    descRevChk.addEventListener('change', function() {
+      descReverse = this.checked;
+      renderTree();
+    });
+  }
+}
 
 function renderPedigree(tc) {
   var sel = personById(selectedPersonId);
@@ -1282,17 +1312,193 @@ function renderPedigree(tc) {
   tc.innerHTML = h;
 }
 
-function renderDescendants(tc) {
+// ─── Ancestors View ──────────────────────────────────────────────────
+
+var ancestorMaxGen = 20;
+
+function renderAncestors(tc) {
   var root = personById(selectedPersonId);
   if (!root) return;
+
+  var controlsHtml = '<div class="desc-controls">'
+    + '<label style="font-size:12px;font-weight:600;color:var(--secondary)">Max generations: </label>'
+    + '<select id="ancestorGenLimit" class="form-select" style="width:auto;font-size:12px;padding:3px 8px;display:inline-block">'
+    + '<option value="99"' + (ancestorMaxGen >= 20 ? ' selected' : '') + '>All</option>';
+  for (var g = 2; g <= 15; g++) {
+    controlsHtml += '<option value="' + g + '"' + (ancestorMaxGen === g ? ' selected' : '') + '>' + g + '</option>';
+  }
+  controlsHtml += '</select>'
+    + '&nbsp;&nbsp;<button class="desc-control-btn" id="printAhnentafelBtn">'
+    + '<span class="material-symbols-outlined" style="font-size:14px">menu_book</span> Ahnentafel Report</button>'
+    + '</div>';
+
   tc.innerHTML = '<div style="width:100%">'
-    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:20px">Descendants of ' + esc(root.name) + '</div>'
-    + buildDescBranch(root, 0)
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:8px">Ancestors of ' + esc(root.name) + '</div>'
+    + controlsHtml
+    + '<div id="ancestorTree">' + buildAncestorBranch(root, 0, ancestorMaxGen) + '</div>'
     + '</div>';
 }
 
-function buildDescBranch(person, depth) {
+function buildAncestorBranch(person, depth, maxGen) {
+  if (depth >= maxGen) return '';
+  var parents = getParentsOf(person);
+  var indent = depth * 32;
+  var depthClass = depth === 0 ? 'depth-0' : depth === 1 ? 'depth-1' : '';
+
+  var h = '<div class="desc-branch" style="margin-left:' + indent + 'px">'
+    + (depth > 0 ? '<div class="desc-connector"></div>' : '')
+    + '<div class="desc-card ' + depthClass + (person.id === selectedPersonId ? ' selected' : '') + '" data-person-id="' + person.id + '">'
+    + photoHtml(person)
+    + '<div>'
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:13px">' + esc(person.name) + '</div>'
+    + '<div style="font-size:11px;color:var(--tertiary)">' + lifeSpan(person) + '</div>'
+    + '<div style="font-size:10px;color:var(--secondary)">'
+    + (depth === 0 ? 'Self' : genLabel(depth)) + '</div>'
+    + '<div>' + badges(person) + '</div>'
+    + '</div></div></div>';
+
+  parents.forEach(function(p) {
+    h += buildAncestorBranch(p, depth + 1, maxGen);
+  });
+  return h;
+}
+
+function genLabel(depth) {
+  if (depth === 1) return 'Parent';
+  if (depth === 2) return 'Grandparent';
+  if (depth === 3) return 'Great-grandparent';
+  var greats = depth - 2;
+  return greats + 'x Great-grandparent';
+}
+
+// ─── Ahnentafel Report ──────────────────────────────────────────────
+
+function generateAhnentafelData(personId, maxGen) {
+  var list = [];
+  var queue = [{ person: personById(personId), num: 1, gen: 0 }];
+
+  while (queue.length > 0) {
+    var item = queue.shift();
+    if (!item.person) continue;
+    if (maxGen && item.gen >= maxGen) continue;
+
+    list.push({ num: item.num, person: item.person, gen: item.gen });
+
+    var parents = getParentsOf(item.person);
+    var father = parents.find(function(p) { return p.sex === 'M'; });
+    var mother = parents.find(function(p) { return p.sex === 'F'; });
+    if (!father && !mother && parents.length >= 1) { father = parents[0]; mother = parents[1] || null; }
+    if (!father && parents.length === 1 && !mother) { father = parents[0]; }
+
+    if (father) queue.push({ person: father, num: item.num * 2, gen: item.gen + 1 });
+    if (mother) queue.push({ person: mother, num: item.num * 2 + 1, gen: item.gen + 1 });
+  }
+
+  list.sort(function(a, b) { return a.num - b.num; });
+  return list;
+}
+
+async function printAhnentafel(personId) {
+  var person = personById(personId);
+  if (!person) return;
+  var data = generateAhnentafelData(personId, 20);
+
+  var css = 'body { font-family: Georgia, "EB Garamond", serif; font-size: 13px; color: #222; line-height: 1.6; max-width: 700px; margin: 0 auto; padding: 30px; }'
+    + 'h1 { font-size: 22px; margin-bottom: 4px; border-bottom: 2px solid #333; padding-bottom: 8px; }'
+    + '.entry { margin-bottom: 10px; page-break-inside: avoid; }'
+    + '.entry-num { font-weight: 700; color: #333; display: inline-block; width: 40px; }'
+    + '.entry-name { font-weight: 700; font-size: 14px; }'
+    + '.entry-detail { font-size: 12px; color: #555; margin-left: 40px; }'
+    + '.gen-header { font-size: 14px; font-weight: 700; color: #666; margin-top: 18px; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }'
+    + '.footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 10px; color: #999; text-align: center; }';
+
+  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ahnentafel — ' + esc(person.name) + '</title>'
+    + '<style>' + css + '</style></head><body>';
+  h += '<h1>Ahnentafel Report</h1>';
+  h += '<div style="font-size:13px;color:#666;margin-bottom:20px">' + esc(person.name) + ' — ' + data.length + ' ancestors traced</div>';
+
+  var lastGen = -1;
+  data.forEach(function(item) {
+    if (item.gen !== lastGen) {
+      lastGen = item.gen;
+      var genName = item.gen === 0 ? 'Subject' : item.gen === 1 ? 'Parents' : item.gen === 2 ? 'Grandparents' : item.gen === 3 ? 'Great-Grandparents' : (item.gen - 2) + 'x Great-Grandparents';
+      h += '<div class="gen-header">Generation ' + item.gen + ' — ' + genName + '</div>';
+    }
+
+    var p = item.person;
+    h += '<div class="entry">';
+    h += '<span class="entry-num">' + item.num + '.</span>';
+    h += '<span class="entry-name">' + esc(p.name) + '</span>';
+
+    var details = [];
+    if (p.birth_date || p.address) {
+      var bStr = 'Born';
+      if (p.birth_date) bStr += ' ' + esc(parseGenealogyDate(p.birth_date).display);
+      if (p.address) bStr += ' in ' + esc(p.address);
+      details.push(bStr);
+    }
+    if (p.death_date) {
+      var dStr = 'Died ' + esc(parseGenealogyDate(p.death_date).display);
+      if (p.cause_of_death) dStr += ' (' + esc(p.cause_of_death) + ')';
+      details.push(dStr);
+    }
+    if (p.burial_location) details.push('Buried at ' + esc(p.burial_location));
+    if (p.occupation) details.push('Occupation: ' + esc(p.occupation));
+
+    var spouses = getSpousesOf(p);
+    spouses.forEach(function(sp) {
+      var fams = getSpouseFamilies(p);
+      var fam = fams.find(function(f) { return f.husband_id === sp.id || f.wife_id === sp.id; });
+      var mStr = 'Married ' + esc(sp.name);
+      if (fam && fam.marriage_date) mStr += ' on ' + esc(parseGenealogyDate(fam.marriage_date).display);
+      if (fam && fam.marriage_place) mStr += ' at ' + esc(fam.marriage_place);
+      details.push(mStr);
+    });
+
+    if (details.length) {
+      h += '<div class="entry-detail">' + details.join('<br/>') + '</div>';
+    }
+    h += '</div>';
+  });
+
+  h += '<div class="footer">Generated by Family Tree on ' + new Date().toLocaleDateString() + '</div>';
+  h += '</body></html>';
+  await window.api.printReport(h);
+}
+
+// ─── Descendants View ────────────────────────────────────────────────
+
+var descMaxGen = 99;
+var descReverse = false;
+
+function renderDescendants(tc) {
+  var root = personById(selectedPersonId);
+  if (!root) return;
+
+  var controlsHtml = '<div class="desc-controls">'
+    + '<label style="font-size:12px;font-weight:600;color:var(--secondary)">Max generations: </label>'
+    + '<select id="descGenLimit" class="form-select" style="width:auto;font-size:12px;padding:3px 8px;display:inline-block">'
+    + '<option value="99"' + (descMaxGen >= 99 ? ' selected' : '') + '>All</option>';
+  for (var g = 1; g <= 15; g++) {
+    controlsHtml += '<option value="' + g + '"' + (descMaxGen === g ? ' selected' : '') + '>' + g + '</option>';
+  }
+  controlsHtml += '</select>'
+    + '&nbsp;&nbsp;<label class="form-checkbox-row" style="display:inline-flex;font-size:12px;gap:4px">'
+    + '<input type="checkbox" id="descReverseChk" class="form-checkbox"' + (descReverse ? ' checked' : '') + '/>'
+    + '<span style="font-weight:600;color:var(--secondary)">Reverse order (youngest first)</span></label>'
+    + '</div>';
+
+  tc.innerHTML = '<div style="width:100%">'
+    + '<div style="font-family:var(--font-headline);font-weight:700;font-size:18px;margin-bottom:8px">Descendants of ' + esc(root.name) + '</div>'
+    + controlsHtml
+    + '<div id="descTree">' + buildDescBranch(root, 0, descMaxGen) + '</div>'
+    + '</div>';
+}
+
+function buildDescBranch(person, depth, maxGen) {
+  if (maxGen !== undefined && depth >= maxGen) return '';
   var kids = getChildrenOf(person);
+  if (descReverse) kids = kids.slice().reverse();
   var spouses = getSpousesOf(person);
   var depthClass = depth === 0 ? 'depth-0' : depth === 1 ? 'depth-1' : '';
 
@@ -1317,7 +1523,7 @@ function buildDescBranch(person, depth) {
     + '<div>' + badges(person) + '</div>'
     + '</div></div></div>';
 
-  kids.forEach(function(c) { h += buildDescBranch(c, depth + 1); });
+  kids.forEach(function(c) { h += buildDescBranch(c, depth + 1, maxGen); });
   return h;
 }
 
@@ -3060,6 +3266,8 @@ async function showResearchLog(person) {
     + '<div style="display:flex;gap:8px;margin-top:20px">'
     + '<button class="research-log-add-btn" id="addLogEntryBtn">'
     + '<span class="material-symbols-outlined" style="font-size:16px">edit_note</span> Add Entry</button>'
+    + '<button class="research-log-add-btn" id="printLogBtn">'
+    + '<span class="material-symbols-outlined" style="font-size:16px">print</span> Print</button>'
     + '<button class="research-log-add-btn" id="closeLogBtn" style="margin-left:auto">'
     + '<span class="material-symbols-outlined" style="font-size:16px">close</span> Close</button>'
     + '</div>';
@@ -3072,6 +3280,9 @@ async function showResearchLog(person) {
   getEl('addLogEntryBtn').addEventListener('click', function() {
     overlay.remove();
     showAddLogEntry(person);
+  });
+  getEl('printLogBtn').addEventListener('click', function() {
+    printResearchLog(person, entries);
   });
 
   page.querySelectorAll('[data-toggle-done]').forEach(function(btn) {
@@ -3145,6 +3356,53 @@ function showAddLogEntry(person) {
   });
 
   getEl('logText').focus();
+}
+
+// ─── Print Research Log ─────────────────────────────────────────────
+
+async function printResearchLog(person, entries) {
+  if (!entries || entries.length === 0) {
+    alert('No research log entries to print.');
+    return;
+  }
+
+  var css = 'body { font-family: Georgia, "EB Garamond", serif; font-size: 13px; color: #222; line-height: 1.7; max-width: 700px; margin: 0 auto; padding: 30px; }'
+    + 'h1 { font-size: 22px; margin-bottom: 4px; border-bottom: 2px solid #333; padding-bottom: 8px; }'
+    + '.subtitle { font-size: 13px; color: #666; margin-bottom: 20px; }'
+    + 'table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }'
+    + 'th { text-align: left; padding: 6px 10px; border-bottom: 2px solid #333; font-size: 12px; font-weight: 700; background: #f5f5f5; }'
+    + 'td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #ddd; font-size: 12px; vertical-align: top; }'
+    + '.done { text-decoration: line-through; opacity: 0.5; }'
+    + '.type-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; background: #eee; color: #555; }'
+    + '.footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 10px; color: #999; text-align: center; }';
+
+  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Research Log — ' + esc(person.name) + '</title>'
+    + '<style>' + css + '</style></head><body>';
+  h += '<h1>Research Log</h1>';
+  h += '<div class="subtitle">' + esc(fullName(person)) + ' — ' + entries.length + ' entries</div>';
+
+  h += '<table><thead><tr><th style="width:80px">Date</th><th style="width:70px">Type</th><th>Entry</th><th style="width:50px">Done</th></tr></thead><tbody>';
+  entries.forEach(function(e) {
+    var typeLabel = e.entry_type === 'todo' ? 'To-Do' : e.entry_type === 'finding' ? 'Finding' : e.entry_type === 'question' ? 'Question' : 'Note';
+    var doneClass = e.is_done ? ' class="done"' : '';
+    h += '<tr>'
+      + '<td>' + esc(e.entry_date || '') + '</td>'
+      + '<td><span class="type-badge">' + typeLabel + '</span></td>'
+      + '<td' + doneClass + '>' + esc(e.entry_text).replace(/\n/g, '<br/>') + '</td>'
+      + '<td>' + (e.is_done ? '✓' : '') + '</td>'
+      + '</tr>';
+  });
+  h += '</tbody></table>';
+
+  h += '<div class="footer">Generated by Family Tree on ' + new Date().toLocaleDateString() + '</div>';
+  h += '</body></html>';
+
+  try {
+    await window.api.printReport(h);
+  } catch(err) {
+    console.error('Print research log failed:', err);
+    alert('Print failed.');
+  }
 }
 
 // ─── Undo System ─────────────────────────────────────────────────
@@ -3352,7 +3610,7 @@ function setupKeyboardShortcuts() {
 
     // Number keys 1-5 for view switching
     if (!isMod && e.key >= '1' && e.key <= '6' && currentTreeId) {
-      var views = ['pedigree', 'timeline', 'descendants', 'family-group', 'map', 'statistics'];
+      var views = ['pedigree', 'timeline', 'ancestors', 'descendants', 'family-group', 'map', 'statistics'];
       var idx = parseInt(e.key) - 1;
       if (idx < views.length) {
         currentView = views[idx];
