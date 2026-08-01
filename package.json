@@ -1,6 +1,6 @@
 {
   "name": "family-tree",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "main": "main.js",
   "author": "Alos Diallo",
   "description": "Family Tree - A genealogy desktop application",
@@ -52,6 +52,7 @@
       "country-data.js",
       "world-map.js",
       "logo.png",
+      "config.json",
       "node_modules/**/*",
       "package.json"
     ],

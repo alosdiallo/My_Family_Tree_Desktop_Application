@@ -130,6 +130,7 @@ async function initDatabase() {
   try { db.run('ALTER TABLE people ADD COLUMN cause_of_death TEXT DEFAULT NULL'); } catch(e) {}
   try { db.run('ALTER TABLE people ADD COLUMN title TEXT DEFAULT NULL'); } catch(e) {}
   try { db.run('ALTER TABLE people ADD COLUMN suffix TEXT DEFAULT NULL'); } catch(e) {}
+  try { db.run('ALTER TABLE people ADD COLUMN death_place TEXT DEFAULT NULL'); } catch(e) {}
 
   // Extended family fields (marriage details)
   try { db.run('ALTER TABLE families ADD COLUMN marriage_date TEXT DEFAULT NULL'); } catch(e) {}
@@ -308,9 +309,9 @@ ipcMain.handle('get-deleted-people', function(ev, treeId) {
 });
 
 ipcMain.handle('add-person', function(ev, treeId, data) {
-  db.run('INSERT INTO people (tree_id, gedcom_id, name, sex, birth_date, death_date, is_adopted, address, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  db.run('INSERT INTO people (tree_id, gedcom_id, name, sex, birth_date, death_date, is_adopted, address, death_place, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [treeId, data.gedcomId || null, data.name, data.sex || null, data.birthDate || null,
-     data.deathDate || null, data.isAdopted ? 1 : 0, data.address || null, data.country || null]);
+     data.deathDate || null, data.isAdopted ? 1 : 0, data.address || null, data.deathPlace || null, data.country || null]);
   var personId = lastInsertId();
   db.run("UPDATE trees SET updated_at = datetime('now') WHERE id = ?", [treeId]);
   saveDb();
@@ -318,7 +319,7 @@ ipcMain.handle('add-person', function(ev, treeId, data) {
 });
 
 ipcMain.handle('update-person', function(ev, id, fields) {
-  var allowed = ['name','sex','birth_date','death_date','is_adopted','address','country','photo_path','gedcom_id','burial_location','notes','occupation','religion','cause_of_death','title','suffix'];
+  var allowed = ['name','sex','birth_date','death_date','is_adopted','address','death_place','country','photo_path','gedcom_id','burial_location','notes','occupation','religion','cause_of_death','title','suffix'];
   var sets = [];
   var vals = [];
   for (var key in fields) {
@@ -713,11 +714,11 @@ ipcMain.handle('search-people', function(ev, treeId, query) {
     + 'LEFT JOIN events e ON e.person_id = p.id '
     + 'WHERE p.tree_id = ? AND p.deleted_at IS NULL '
     + 'AND (p.name LIKE ? OR p.birth_date LIKE ? OR p.death_date LIKE ? '
-    + 'OR p.address LIKE ? OR p.country LIKE ? OR p.notes LIKE ? '
+    + 'OR p.address LIKE ? OR p.death_place LIKE ? OR p.country LIKE ? OR p.notes LIKE ? '
     + 'OR p.occupation LIKE ? OR p.burial_location LIKE ? OR p.religion LIKE ? '
     + 'OR e.event_place LIKE ? OR e.description LIKE ? OR e.event_date LIKE ?) '
     + 'ORDER BY p.name',
-    [treeId, q, q, q, q, q, q, q, q, q, q, q, q]
+    [treeId, q, q, q, q, q, q, q, q, q, q, q, q, q]
   );
 });
 
@@ -935,6 +936,7 @@ ipcMain.handle('import-gedcom', async function(ev, treeId) {
       // --- Death ---
       var deathNode = findChild(ind, 'DEAT');
       var deathDate = deathNode ? childValue(deathNode, 'DATE') : null;
+      var deathPlace = deathNode ? childValue(deathNode, 'PLAC') : '';
       var causeOfDeath = deathNode ? childValue(deathNode, 'CAUS') : null;
 
       // --- Burial ---
@@ -997,9 +999,9 @@ ipcMain.handle('import-gedcom', async function(ev, treeId) {
       }
 
       // --- Insert person ---
-      db.run('INSERT INTO people (tree_id, gedcom_id, name, sex, birth_date, death_date, is_adopted, address, country, burial_location, notes, occupation, religion, cause_of_death, title, suffix) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      db.run('INSERT INTO people (tree_id, gedcom_id, name, sex, birth_date, death_date, is_adopted, address, death_place, country, burial_location, notes, occupation, religion, cause_of_death, title, suffix) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [treeId, ind.pointer, rawName, sex, birthDate || null, deathDate || null, isAdopted,
-         birthPlace || null, personCountry, burialLocation, notesStr, occupation, religion,
+         birthPlace || null, deathPlace || null, personCountry, burialLocation, notesStr, occupation, religion,
          causeOfDeath, prefix || null, suffix || null]);
       var personId = lastInsertId();
       gedcomToPersonId[ind.pointer] = personId;
@@ -1256,9 +1258,10 @@ ipcMain.handle('export-gedcom', async function(ev, treeId) {
       }
 
       // Death
-      if (p.death_date || p.cause_of_death) {
+      if (p.death_date || p.death_place || p.cause_of_death) {
         out.push('1 DEAT');
         if (p.death_date) out.push('2 DATE ' + p.death_date);
+        if (p.death_place) out.push('2 PLAC ' + p.death_place);
         if (p.cause_of_death) out.push('2 CAUS ' + p.cause_of_death);
       }
 
@@ -1544,6 +1547,10 @@ ipcMain.handle('get-system-info', function() {
 ipcMain.handle('submit-bug-report', async function(ev, data) {
   var https = require('https');
 
+  if (!GITHUB_TOKEN) {
+    return { success: false, error: 'Bug reporting isn\'t set up on this computer yet (no credentials found). Please email or text Alos directly instead.' };
+  }
+
   var labels = ['bug'];
   if (data.severity === 'crash') labels.push('critical');
 
@@ -1586,6 +1593,9 @@ ipcMain.handle('submit-bug-report', async function(ev, data) {
           var parsed = JSON.parse(responseData);
           if (res.statusCode === 201) {
             resolve({ success: true, url: parsed.html_url, number: parsed.number });
+          } else if (res.statusCode === 401 || res.statusCode === 403) {
+            console.error('GitHub API error:', res.statusCode, responseData);
+            resolve({ success: false, error: 'The connection to GitHub isn\'t working right now (this isn\'t something you did wrong). Please email or text Alos so he can fix it.' });
           } else {
             console.error('GitHub API error:', res.statusCode, responseData);
             resolve({ success: false, error: parsed.message || 'GitHub API error (' + res.statusCode + ')' });

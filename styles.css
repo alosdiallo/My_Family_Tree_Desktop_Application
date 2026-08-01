@@ -347,6 +347,17 @@ body {
 
 .header-btn.primary:hover { filter: brightness(1.08); }
 
+.header-btn.bug-report-btn {
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+.header-btn.bug-report-btn .material-symbols-outlined { font-size: 19px; }
+
+.header-btn.bug-report-btn:hover { filter: brightness(0.97); }
+
 /* ─── Header Dropdown Menu ────────────────────────────────────────── */
 
 .header-dropdown-wrap {
@@ -871,6 +882,13 @@ body {
 .fg-table tr:hover td { background: var(--surface); }
 .fg-table td[data-person-id] { cursor: pointer; }
 .fg-name-cell { display: flex; align-items: center; gap: 8px; }
+
+.directory-wrap { padding: 20px; }
+.directory-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.directory-sort-toggle { display: flex; gap: 6px; }
+.directory-count { margin-left: auto; font-size: 12px; color: var(--secondary); }
+.directory-row { cursor: pointer; }
+.directory-row.selected td { background: rgba(0,81,213,0.08); }
 
 /* ─── Sidebar Components ──────────────────────────────────────────── */
 

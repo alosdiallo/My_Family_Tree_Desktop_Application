@@ -1122,6 +1122,7 @@ function renderTree() {
   else if (currentView === 'map') { renderMapView(tc); return; }
   else if (currentView === 'statistics') { renderStatistics(tc); return; }
   else if (currentView === 'timeline') { renderTimeline(tc); return; }
+  else if (currentView === 'directory') { renderDirectory(tc); return; }
 
   // Add print header (hidden on screen, shown when printing)
   var treeName = getEl('treeTitle') ? getEl('treeTitle').textContent : 'Family Tree';
@@ -1437,8 +1438,10 @@ async function printAhnentafel(personId) {
       if (p.address) bStr += ' in ' + esc(p.address);
       details.push(bStr);
     }
-    if (p.death_date) {
-      var dStr = 'Died ' + esc(parseGenealogyDate(p.death_date).display);
+    if (p.death_date || p.death_place) {
+      var dStr = 'Died';
+      if (p.death_date) dStr += ' ' + esc(parseGenealogyDate(p.death_date).display);
+      if (p.death_place) dStr += ' in ' + esc(p.death_place);
       if (p.cause_of_death) dStr += ' (' + esc(p.cause_of_death) + ')';
       details.push(dStr);
     }
@@ -1888,6 +1891,109 @@ function buildMapLegend(countryGroups, countries) {
   });
 }
 
+// ─── Directory View ──────────────────────────────────────────────
+
+var directorySortField = 'lastName'; // 'lastName' or 'firstName'
+var directorySearchQuery = '';
+
+function directorySurname(name) {
+  if (!name) return '';
+  var parts = name.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';
+}
+
+function directoryGivenName(name) {
+  if (!name) return '';
+  var parts = name.trim().split(/\s+/);
+  return parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0] || '';
+}
+
+function renderDirectory(tc) {
+  var h = '<div class="directory-wrap">';
+  h += '<div class="directory-toolbar">'
+    + '<input id="directorySearch" class="form-input" placeholder="Search by name..." value="' + esc(directorySearchQuery) + '" style="max-width:280px"/>'
+    + '<div class="directory-sort-toggle">'
+    + '<button class="header-btn' + (directorySortField === 'lastName' ? ' primary' : '') + '" id="sortByLastBtn">Sort: Last Name</button>'
+    + '<button class="header-btn' + (directorySortField === 'firstName' ? ' primary' : '') + '" id="sortByFirstBtn">Sort: First Name</button>'
+    + '</div>'
+    + '<div class="directory-count" id="directoryCount"></div>'
+    + '</div>';
+  h += '<div id="directoryTableWrap"></div>';
+  h += '</div>';
+  tc.innerHTML = h;
+
+  getEl('directorySearch').addEventListener('input', function() {
+    directorySearchQuery = this.value;
+    renderDirectoryTable();
+  });
+  getEl('sortByLastBtn').addEventListener('click', function() {
+    if (directorySortField === 'lastName') return;
+    directorySortField = 'lastName';
+    renderDirectory(tc);
+  });
+  getEl('sortByFirstBtn').addEventListener('click', function() {
+    if (directorySortField === 'firstName') return;
+    directorySortField = 'firstName';
+    renderDirectory(tc);
+  });
+
+  renderDirectoryTable();
+  var searchInput = getEl('directorySearch');
+  searchInput.focus();
+  searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+}
+
+function renderDirectoryTable() {
+  var wrap = getEl('directoryTableWrap');
+  if (!wrap) return;
+
+  var q = directorySearchQuery.trim().toLowerCase();
+  var list = allPeople.filter(function(p) { return !q || (p.name || '').toLowerCase().indexOf(q) !== -1; });
+
+  list = list.slice().sort(function(a, b) {
+    var ka, kb;
+    if (directorySortField === 'firstName') {
+      ka = directoryGivenName(a.name).toLowerCase();
+      kb = directoryGivenName(b.name).toLowerCase();
+    } else {
+      ka = directorySurname(a.name).toLowerCase();
+      kb = directorySurname(b.name).toLowerCase();
+    }
+    return ka.localeCompare(kb) || (a.name || '').localeCompare(b.name || '');
+  });
+
+  var countEl = getEl('directoryCount');
+  if (countEl) countEl.textContent = list.length + (list.length === 1 ? ' person' : ' people');
+
+  if (list.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined">person_search</span><div class="title">No matches</div><p>Try a different search.</p></div>';
+    return;
+  }
+
+  var rows = '<div class="fg-section"><table class="fg-table"><thead><tr><th>Name</th><th>Birth Date</th><th>Death Date</th><th>Place of Birth</th></tr></thead><tbody>';
+  list.forEach(function(p) {
+    rows += '<tr data-person-id="' + p.id + '" class="directory-row' + (p.id === selectedPersonId ? ' selected' : '') + '">'
+      + '<td style="font-weight:600">' + esc(fullName(p)) + '</td>'
+      + '<td>' + (p.birth_date ? esc(parseGenealogyDate(p.birth_date).display) : '&mdash;') + '</td>'
+      + '<td>' + (p.death_date ? esc(parseGenealogyDate(p.death_date).display) : '&mdash;') + '</td>'
+      + '<td>' + (p.address ? esc(p.address) : '&mdash;') + '</td>'
+      + '</tr>';
+  });
+  rows += '</tbody></table></div>';
+  wrap.innerHTML = rows;
+
+  wrap.querySelectorAll('[data-person-id]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      selectedPersonId = parseInt(this.dataset.personId);
+      currentView = 'pedigree';
+      document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelector('[data-view="pedigree"]').classList.add('active');
+      renderTree();
+      renderSidebar();
+    });
+  });
+}
+
 // ─── Timeline View ───────────────────────────────────────────────
 
 async function renderTimeline(tc) {
@@ -1991,7 +2097,7 @@ async function renderTimeline(tc) {
       icon: 'brightness_low',
       title: 'Died' + (person.cause_of_death ? ' — ' + person.cause_of_death : ''),
       detail: dd.display || person.death_date,
-      place: person.burial_location ? 'Buried: ' + person.burial_location : null
+      place: [person.death_place, person.burial_location ? 'Buried: ' + person.burial_location : null].filter(Boolean).join(' · ') || null
     });
   }
 
@@ -2325,12 +2431,13 @@ function renderSidebar() {
     + '<div class="sidebar-subtitle">Manage individual records</div>'
     + metaField('Sex', person.sex || '—')
     + metaField('Birth Date', person.birth_date || '—')
+    + (person.address ? metaField('Place of Birth', person.address) : '')
     + (person.death_date ? metaField('Death Date', person.death_date) : '')
+    + (person.death_place ? metaField('Place of Death', person.death_place) : '')
     + (person.cause_of_death ? metaField('Cause of Death', person.cause_of_death) : '')
     + (person.is_adopted ? metaField('Status', 'Adopted') : '')
     + (person.occupation ? metaField('Occupation', person.occupation) : '')
     + (person.religion ? metaField('Religion', person.religion) : '')
-    + (person.address ? metaField('Address', person.address) : '')
     + (person.country ? metaField('Country', person.country) : '')
     + (person.burial_location ? metaField('Burial Location', person.burial_location) : '')
     + (person.notes ? '<div class="meta-field"><div class="meta-label">Notes</div><div class="meta-value" style="font-size:13px;font-weight:400;white-space:pre-wrap">' + esc(person.notes) + '</div></div>' : '')
@@ -2506,13 +2613,14 @@ function showEditForm(person) {
     + '<div class="form-group"><label class="form-label">Suffix (e.g. Jr., Sr., III)</label><input id="editSuffix" class="form-input" value="' + esc(person.suffix || '') + '" placeholder="e.g. Jr., Sr., III, Esq."/></div>'
     + '<div class="form-group"><label class="form-label">Sex</label><select id="editSex" class="form-select"><option value="F"' + (person.sex === 'F' ? ' selected' : '') + '>Female</option><option value="M"' + (person.sex === 'M' ? ' selected' : '') + '>Male</option><option value=""' + (!person.sex ? ' selected' : '') + '>Unknown</option></select></div>'
     + '<div class="form-group"><label class="form-label">Birth Date</label><input id="editBirth" class="form-input" value="' + esc(person.birth_date || '') + '" placeholder="e.g. jan 5 1892, about 1670, between 1860 and 1870"/><div class="date-hint" id="birthHint"></div></div>'
+    + '<div class="form-group"><label class="form-label">Place of Birth</label><input id="editAddress" class="form-input" value="' + esc(person.address || '') + '" placeholder="e.g. Halifax, Nova Scotia"/></div>'
     + '<div class="form-group"><label class="form-label">Death Date</label><input id="editDeath" class="form-input" value="' + esc(person.death_date || '') + '" placeholder="Leave blank if living"/><div class="date-hint" id="deathHint"></div></div>'
+    + '<div class="form-group"><label class="form-label">Place of Death</label><input id="editDeathPlace" class="form-input" value="' + esc(person.death_place || '') + '" placeholder="e.g. Acton, MA"/></div>'
     + '<div class="form-group"><label class="form-label">Cause of Death</label><input id="editCauseOfDeath" class="form-input" value="' + esc(person.cause_of_death || '') + '" placeholder="e.g. Heart failure"/></div>'
     + '<div class="form-group"><label class="form-label">Burial Location</label><input id="editBurial" class="form-input" value="' + esc(person.burial_location || '') + '" placeholder="e.g. Greenwood Cemetery, Brooklyn, NY"/></div>'
     + '<label class="form-checkbox-row"><input type="checkbox" id="editAdopted" class="form-checkbox"' + (person.is_adopted ? ' checked' : '') + '/> <span class="form-label" style="margin:0">Adopted</span></label>'
     + '<div class="form-group"><label class="form-label">Occupation</label><input id="editOccupation" class="form-input" value="' + esc(person.occupation || '') + '" placeholder="e.g. Teacher, Farmer, Attorney"/></div>'
     + '<div class="form-group"><label class="form-label">Religion</label><input id="editReligion" class="form-input" value="' + esc(person.religion || '') + '" placeholder="e.g. Catholic, Muslim, Baptist"/></div>'
-    + '<div class="form-group"><label class="form-label">Address</label><input id="editAddress" class="form-input" value="' + esc(person.address || '') + '" placeholder="e.g. 123 Main St"/></div>'
     + '<div class="form-group"><label class="form-label">Country</label><input id="editCountry" class="form-input" value="' + esc(person.country || '') + '" placeholder="e.g. United States"/></div>'
     + '<div class="form-group"><label class="form-label">Notes <button type="button" id="expandNotesBtn" style="float:right;background:none;border:none;color:var(--primary);font-size:11px;font-weight:700;cursor:pointer">Expand</button></label><textarea id="editNotes" class="form-input" style="min-height:80px;resize:vertical" placeholder="Family stories, memories, context...">' + esc(person.notes || '') + '</textarea></div>'
     + '<button class="sidebar-btn primary" id="saveEditBtn"><span class="material-symbols-outlined">save</span> Save Changes</button>'
@@ -2561,6 +2669,7 @@ function showEditForm(person) {
       occupation: getEl('editOccupation').value.trim() || null,
       religion: getEl('editReligion').value.trim() || null,
       address: getEl('editAddress').value.trim() || null,
+      deathPlace: getEl('editDeathPlace').value.trim() || null,
       country: getEl('editCountry').value.trim() || null,
       notes: getEl('editNotes').value.trim() || null
     };
@@ -4027,6 +4136,7 @@ async function generatePersonReport(personId) {
   if (person.birth_date) h += '<tr><th>Birth Date</th><td>' + esc(parseGenealogyDate(person.birth_date).display) + '</td></tr>';
   if (person.address) h += '<tr><th>Birth Place</th><td>' + esc(person.address) + '</td></tr>';
   if (person.death_date) h += '<tr><th>Death Date</th><td>' + esc(parseGenealogyDate(person.death_date).display) + '</td></tr>';
+  if (person.death_place) h += '<tr><th>Place of Death</th><td>' + esc(person.death_place) + '</td></tr>';
   if (person.cause_of_death) h += '<tr><th>Cause of Death</th><td>' + esc(person.cause_of_death) + '</td></tr>';
   if (person.burial_location) h += '<tr><th>Burial Location</th><td>' + esc(person.burial_location) + '</td></tr>';
   if (person.occupation) h += '<tr><th>Occupation</th><td>' + esc(person.occupation) + '</td></tr>';
@@ -4177,7 +4287,8 @@ async function generateFamilyReport() {
     if (p.sex) html += '<div class="detail-label">Sex</div><div class="detail-value">' + (p.sex === 'M' ? 'Male' : p.sex === 'F' ? 'Female' : p.sex) + '</div>';
     if (p.occupation) html += '<div class="detail-label">Occupation</div><div class="detail-value">' + esc(p.occupation) + '</div>';
     if (p.religion) html += '<div class="detail-label">Religion</div><div class="detail-value">' + esc(p.religion) + '</div>';
-    if (p.address) html += '<div class="detail-label">Address</div><div class="detail-value">' + esc(p.address) + '</div>';
+    if (p.address) html += '<div class="detail-label">Place of Birth</div><div class="detail-value">' + esc(p.address) + '</div>';
+    if (p.death_place) html += '<div class="detail-label">Place of Death</div><div class="detail-value">' + esc(p.death_place) + '</div>';
     if (p.country) html += '<div class="detail-label">Country</div><div class="detail-value">' + esc(p.country) + '</div>';
     if (p.burial_location) html += '<div class="detail-label">Burial</div><div class="detail-value">' + esc(p.burial_location) + '</div>';
     if (p.cause_of_death) html += '<div class="detail-label">Cause of Death</div><div class="detail-value">' + esc(p.cause_of_death) + '</div>';
